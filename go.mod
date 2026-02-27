@@ -1,4 +1,4 @@
-module github.com/openmcp-project/service-provider-template
+module github.com/openmcp-project/service-provider-flux
 
 go 1.25.4
 

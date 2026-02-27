@@ -1,6 +1,6 @@
 apiVersion: flux.services.openmcp.cloud/v1alpha1
-kind: ProviderConfig
+kind: Flux
 metadata:
-  name: flux
+  name: test-mcp
 spec:
-  pollInterval: 1m
+  foo: bar
