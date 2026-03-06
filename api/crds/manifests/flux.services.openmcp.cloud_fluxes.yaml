@@ -48,10 +48,11 @@ spec:
           spec:
             description: spec defines the desired state of Flux
             properties:
-              foo:
-                description: foo is an example field of Flux. Edit flux_types.go to
-                  remove/update
+              version:
+                description: Version is the version to install Flux.
                 type: string
+            required:
+            - version
             type: object
           status:
             description: status defines the observed state of Flux
