@@ -55,7 +55,7 @@ import (
 
 	"github.com/openmcp-project/service-provider-flux/api/crds"
 
-	spruntime "github.com/openmcp-project/service-provider-flux/pkg/runtime"
+	spruntime "github.com/openmcp-project/service-provider-flux/pkg/spruntime"
 
 	fluxsv1alpha1 "github.com/openmcp-project/service-provider-flux/api/v1alpha1"
 	"github.com/openmcp-project/service-provider-flux/internal/controller"

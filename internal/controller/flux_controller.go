@@ -33,7 +33,7 @@ import (
 	libutils "github.com/openmcp-project/openmcp-operator/lib/utils"
 
 	apiv1alpha1 "github.com/openmcp-project/service-provider-flux/api/v1alpha1"
-	spruntime "github.com/openmcp-project/service-provider-flux/pkg/runtime"
+	spruntime "github.com/openmcp-project/service-provider-flux/pkg/spruntime"
 )
 
 const (
@@ -216,7 +216,7 @@ func (r *FluxReconciler) CreateOrUpdate(ctx context.Context, obj *apiv1alpha1.Fl
 }
 
 // Delete is called on every delete event
-func (r *FluxReconciler) Delete(ctx context.Context, obj *apiv1alpha1.Flux, _ *apiv1alpha1.ProviderConfig, clusters spruntime.ClusterContext) (ctrl.Result, error) {
+func (r *FluxReconciler) Delete(ctx context.Context, obj *apiv1alpha1.Flux, _ *apiv1alpha1.ProviderConfig, _ spruntime.ClusterContext) (ctrl.Result, error) {
 	l := logf.FromContext(ctx)
 
 	// Set status to terminating
@@ -229,7 +229,7 @@ func (r *FluxReconciler) Delete(ctx context.Context, obj *apiv1alpha1.Flux, _ *a
 		return ctrl.Result{}, fmt.Errorf("failed to generate stable MCP namespace: %w", err)
 	}
 
-	var objects []client.Object
+	var objects []client.Object // nolint:prealloc
 
 	// Delete HelmRelease first (triggers Helm uninstall)
 	helmRelease := &helmv2.HelmRelease{
