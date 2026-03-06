@@ -34,7 +34,7 @@ func TestMain(m *testing.M) {
 		ServiceProviders: []providers.ServiceProviderSetup{
 			{
 				Name:  "flux",
-				Image: "ghcr.io/openmcp-project/images/service-provider-flux:0.0.1",
+				Image: "ghcr.io/openmcp-project/images/service-provider-flux:0.0.1-linux-arm64",
 			},
 		},
 	}
