@@ -121,16 +121,9 @@ func (r *FluxReconciler) createOrUpdateHelmRelease(
 
 	_, err := ctrl.CreateOrUpdate(ctx, r.PlatformCluster.Client(), helmRelease, func() error {
 		helmRelease.Spec.Interval = metav1.Duration{Duration: 10 * time.Minute}
-		helmRelease.Spec.Chart = &helmv2.HelmChartTemplate{
-			Spec: helmv2.HelmChartTemplateSpec{
-				Chart: "*", // Use latest version from OCI repo
-				SourceRef: helmv2.CrossNamespaceObjectReference{
-					Kind:      "OCIRepository",
-					Name:      OCIRepositoryName,
-					Namespace: namespace,
-				},
-				Interval: &metav1.Duration{Duration: 10 * time.Minute},
-			},
+		helmRelease.Spec.ChartRef = &helmv2.CrossNamespaceSourceReference{
+			Kind: "OCIRepository",
+			Name: OCIRepositoryName,
 		}
 
 		// Configure install behavior
@@ -151,12 +144,6 @@ func (r *FluxReconciler) createOrUpdateHelmRelease(
 				Retries:  retries,
 				Strategy: &remediationStrategy,
 			},
-		}
-
-		// Configure rollback behavior
-		recreate := true
-		helmRelease.Spec.Rollback = &helmv2.Rollback{
-			Recreate: recreate,
 		}
 
 		// Set target namespace for Flux deployment
