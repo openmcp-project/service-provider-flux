@@ -24,9 +24,9 @@ import (
 	helmv2 "github.com/fluxcd/helm-controller/api/v2"
 	"github.com/fluxcd/pkg/apis/meta"
 	sourcev1 "github.com/fluxcd/source-controller/api/v1"
-	apierrors "k8s.io/apimachinery/pkg/api/errors"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	ctrl "sigs.k8s.io/controller-runtime"
+	"sigs.k8s.io/controller-runtime/pkg/client"
 	logf "sigs.k8s.io/controller-runtime/pkg/log"
 
 	"github.com/openmcp-project/controller-utils/pkg/clusters"
@@ -177,48 +177,6 @@ func (r *FluxReconciler) createOrUpdateHelmRelease(
 	return nil
 }
 
-// deleteFluxResources removes the HelmRelease and OCIRepository from Platform cluster.
-func (r *FluxReconciler) deleteFluxResources(
-	ctx context.Context,
-	_ spruntime.ClusterContext,
-	namespace string,
-) error {
-	l := logf.FromContext(ctx)
-
-	// Delete HelmRelease first (triggers Helm uninstall)
-	helmRelease := &helmv2.HelmRelease{
-		ObjectMeta: metav1.ObjectMeta{
-			Name:      HelmReleaseName,
-			Namespace: namespace,
-		},
-	}
-
-	if err := r.PlatformCluster.Client().Delete(ctx, helmRelease); err != nil {
-		if !apierrors.IsNotFound(err) {
-			l.Error(err, "failed to delete HelmRelease")
-			return fmt.Errorf("failed to delete HelmRelease: %w", err)
-		}
-	}
-
-	// Delete OCIRepository
-	ociRepo := &sourcev1.OCIRepository{
-		ObjectMeta: metav1.ObjectMeta{
-			Name:      OCIRepositoryName,
-			Namespace: namespace,
-		},
-	}
-
-	if err := r.PlatformCluster.Client().Delete(ctx, ociRepo); err != nil {
-		if !apierrors.IsNotFound(err) {
-			l.Error(err, "failed to delete OCIRepository")
-			return fmt.Errorf("failed to delete OCIRepository: %w", err)
-		}
-	}
-
-	l.Info("deleted Flux resources from platform cluster", "namespace", namespace)
-	return nil
-}
-
 // CreateOrUpdate is called on every add or update event
 func (r *FluxReconciler) CreateOrUpdate(ctx context.Context, obj *apiv1alpha1.Flux, pc *apiv1alpha1.ProviderConfig, clusters spruntime.ClusterContext) (ctrl.Result, error) {
 	l := logf.FromContext(ctx)
@@ -271,12 +229,48 @@ func (r *FluxReconciler) Delete(ctx context.Context, obj *apiv1alpha1.Flux, _ *a
 		return ctrl.Result{}, fmt.Errorf("failed to generate stable MCP namespace: %w", err)
 	}
 
-	// Delete Flux resources (HelmRelease, OCIRepository)
-	if err := r.deleteFluxResources(ctx, clusters, namespace); err != nil {
-		l.Error(err, "failed to delete Flux resources, will retry")
-		return ctrl.Result{RequeueAfter: 10 * time.Second}, err
+	var objects []client.Object
+
+	// Delete HelmRelease first (triggers Helm uninstall)
+	helmRelease := &helmv2.HelmRelease{
+		ObjectMeta: metav1.ObjectMeta{
+			Name:      HelmReleaseName,
+			Namespace: namespace,
+		},
+	}
+
+	objects = append(objects, helmRelease)
+
+	// Delete OCIRepository
+	ociRepo := &sourcev1.OCIRepository{
+		ObjectMeta: metav1.ObjectMeta{
+			Name:      OCIRepositoryName,
+			Namespace: namespace,
+		},
+	}
+
+	objects = append(objects, ociRepo)
+
+	objectsStillExist := false
+	for _, managedObj := range objects {
+		if err := r.PlatformCluster.Client().Delete(ctx, managedObj); client.IgnoreNotFound(err) != nil {
+			spruntime.StatusFailed(obj, err.Error())
+			return ctrl.Result{}, fmt.Errorf("delete object failed: %w", err)
+		}
+		// we ignore any other error because we assume that if deleting worked, getting should not fail with anything other than
+		// not found.
+		if err := r.PlatformCluster.Client().Get(ctx, client.ObjectKeyFromObject(managedObj), managedObj); err != nil {
+			objectsStillExist = true
+		}
+	}
+
+	if objectsStillExist {
+		return ctrl.Result{
+			RequeueAfter: time.Second * 10,
+		}, nil
 	}
 
 	l.Info("successfully deleted Flux deployment", "namespace", namespace)
+	spruntime.StatusReady(obj)
 	return ctrl.Result{}, nil
 }

@@ -30,6 +30,19 @@ func StatusProgressing(obj ServiceProviderAPI, reason string, message string) {
 	obj.SetPhase(StatusPhaseProgressing)
 }
 
+// StatusFailed indicates ready with ready false
+func StatusFailed(obj ServiceProviderAPI, msg string) {
+	meta.SetStatusCondition(obj.GetConditions(), metav1.Condition{
+		Type:               ServiceProviderConditionReady,
+		Status:             metav1.ConditionFalse,
+		ObservedGeneration: obj.GetGeneration(),
+		Reason:             "ReconcileFailed",
+		Message:            msg,
+	})
+	obj.SetObservedGeneration(obj.GetGeneration())
+	obj.SetPhase(StatusPhaseReady)
+}
+
 // StatusReady indicates ready with ready true
 func StatusReady(obj ServiceProviderAPI) {
 	meta.SetStatusCondition(obj.GetConditions(), metav1.Condition{
