@@ -41,12 +41,29 @@ spec:
           spec:
             description: spec defines the desired state of ProviderConfig
             properties:
+              chartUrl:
+                description: |-
+                  ChartURL is the OCI registry URL for the Flux Helm chart
+                  Example: oci://ghcr.io/fluxcd-community/charts/flux2
+                type: string
+              imagePullSecret:
+                description: |-
+                  ImagePullSecret references a secret containing registry credentials
+                  for pulling images in air-gapped environments.
+                  The secret will be replicated to the target namespace.
+                type: string
               pollInterval:
                 default: 1m
-                description: foo is an example field of ProviderConfig. Edit providerconfig_types.go
-                  to remove/update
+                description: PollInterval determines how often to reconcile resources
+                  to prevent drift
                 format: duration
                 type: string
+              values:
+                description: Values contains Helm values to override defaults for
+                  the Flux deployment
+                x-kubernetes-preserve-unknown-fields: true
+            required:
+            - chartUrl
             type: object
           status:
             description: status defines the observed state of ProviderConfig

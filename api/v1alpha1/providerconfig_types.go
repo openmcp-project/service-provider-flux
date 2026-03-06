@@ -19,6 +19,7 @@ package v1alpha1
 import (
 	"time"
 
+	apiextensionsv1 "k8s.io/apiextensions-apiserver/pkg/apis/apiextensions/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 )
 
@@ -32,7 +33,22 @@ type ProviderConfigSpec struct {
 	// The following markers will use OpenAPI v3 schema to validate the value
 	// More info: https://book.kubebuilder.io/reference/markers/crd-validation.html
 
-	// foo is an example field of ProviderConfig. Edit providerconfig_types.go to remove/update
+	// ChartURL is the OCI registry URL for the Flux Helm chart
+	// Example: oci://ghcr.io/fluxcd-community/charts/flux2
+	// +kubebuilder:validation:Required
+	ChartURL string `json:"chartUrl"`
+
+	// Values contains Helm values to override defaults for the Flux deployment
+	// +optional
+	Values *apiextensionsv1.JSON `json:"values,omitempty"`
+
+	// ImagePullSecret references a secret containing registry credentials
+	// for pulling images in air-gapped environments.
+	// The secret will be replicated to the target namespace.
+	// +optional
+	ImagePullSecret string `json:"imagePullSecret,omitempty"`
+
+	// PollInterval determines how often to reconcile resources to prevent drift
 	// +optional
 	// +kubebuilder:default:="1m"
 	// +kubebuilder:validation:Format=duration

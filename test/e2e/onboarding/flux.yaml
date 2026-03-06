@@ -3,4 +3,4 @@ kind: Flux
 metadata:
   name: test-mcp
 spec:
-  foo: bar
+  version: "v2.4.0"

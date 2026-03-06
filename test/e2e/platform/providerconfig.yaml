@@ -3,4 +3,13 @@ kind: ProviderConfig
 metadata:
   name: flux
 spec:
+  chartUrl: "oci://ghcr.io/fluxcd-community/charts/flux2"
   pollInterval: 1m
+  # Optional: uncomment for private registry scenarios
+  # imagePullSecret: "flux-registry-credentials"
+  # values:
+  #   controllers:
+  #     source:
+  #       resources:
+  #         limits:
+  #           memory: 1Gi

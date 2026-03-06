@@ -23,6 +23,8 @@ import (
 	"os"
 	"time"
 
+	helmv2 "github.com/fluxcd/helm-controller/api/v2"
+	sourcev1 "github.com/fluxcd/source-controller/api/v1"
 	flag "github.com/spf13/pflag"
 
 	// Import all Kubernetes client auth plugins (e.g. Azure, GCP, OIDC, etc.)
@@ -80,6 +82,10 @@ func initPlatformScheme() {
 	utilruntime.Must(fluxsv1alpha1.AddToScheme(platformScheme))
 	utilruntime.Must(clustersv1alpha1.AddToScheme(platformScheme))
 	utilruntime.Must(providerv1alpha1.AddToScheme(platformScheme))
+
+	// add Flux resource to schemes
+	utilruntime.Must(sourcev1.AddToScheme(platformScheme))
+	utilruntime.Must(helmv2.AddToScheme(platformScheme))
 }
 
 func initOnboardingScheme() {
