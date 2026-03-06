@@ -6,6 +6,7 @@ require (
 	github.com/openmcp-project/controller-utils v0.23.4
 	github.com/openmcp-project/openmcp-operator/api v0.17.1
 	github.com/openmcp-project/openmcp-operator/lib v0.17.1
+	github.com/stretchr/testify v1.11.1
 	k8s.io/api v0.34.3
 	k8s.io/apimachinery v0.34.3
 	k8s.io/client-go v0.34.3
@@ -52,6 +53,7 @@ require (
 	google.golang.org/genproto/googleapis/api v0.0.0-20250303144028-a0af3efb3deb // indirect
 	google.golang.org/genproto/googleapis/rpc v0.0.0-20250303144028-a0af3efb3deb // indirect
 	google.golang.org/grpc v1.72.1 // indirect
+	gopkg.in/yaml.v3 v3.0.1 // indirect
 	k8s.io/apiserver v0.34.2 // indirect
 	sigs.k8s.io/apiserver-network-proxy/konnectivity-client v0.31.2 // indirect
 	sigs.k8s.io/kind v0.31.0 // indirect
