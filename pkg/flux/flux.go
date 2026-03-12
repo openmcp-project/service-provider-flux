@@ -15,6 +15,7 @@ package flux
 
 import (
 	"context"
+	"fmt"
 	"time"
 
 	helmv2 "github.com/fluxcd/helm-controller/api/v2"
@@ -46,7 +47,10 @@ func Configure(cluster ManagedCluster, namespace string, obj *apiv1alpha1.Flux, 
 		},
 	}, ManagedObjectContext{
 		ReconcileFunc: func(_ context.Context, o client.Object) error {
-			ociRepo := o.(*sourcev1.OCIRepository)
+			ociRepo, ok := o.(*sourcev1.OCIRepository)
+			if !ok {
+				return fmt.Errorf("expected *sourcev1.OCIRepository, got %T", o)
+			}
 			ociRepo.Spec = sourcev1.OCIRepositorySpec{
 				Interval: metav1.Duration{Duration: 10 * time.Minute},
 				URL:      pc.Spec.ChartURL,
@@ -69,7 +73,10 @@ func Configure(cluster ManagedCluster, namespace string, obj *apiv1alpha1.Flux, 
 		},
 	}, ManagedObjectContext{
 		ReconcileFunc: func(_ context.Context, o client.Object) error {
-			helmRelease := o.(*helmv2.HelmRelease)
+			helmRelease, ok := o.(*helmv2.HelmRelease)
+			if !ok {
+				return fmt.Errorf("expected *helmv2.HelmRelease, got %T", o)
+			}
 			retries := 3
 
 			helmRelease.Spec = helmv2.HelmReleaseSpec{
@@ -129,7 +136,15 @@ func Configure(cluster ManagedCluster, namespace string, obj *apiv1alpha1.Flux, 
 
 // FluxStatus indicates whether the given Flux object is in phase terminating, pending or ready.
 func FluxStatus(o client.Object, rl apiv1alpha1.ResourceLocation) Status { // nolint:revive
-	fluxObject := o.(conditions.Getter)
+	fluxObject, ok := o.(conditions.Getter)
+	if !ok {
+		// Object doesn't implement conditions.Getter, return unknown status
+		return Status{
+			Phase:    apiv1alpha1.Unknown,
+			Message:  fmt.Sprintf("Object %T does not implement conditions.Getter", o),
+			Location: rl,
+		}
+	}
 	if !o.GetDeletionTimestamp().IsZero() {
 		return Status{
 			Phase:    apiv1alpha1.Terminating,
