@@ -38,7 +38,7 @@ const (
 	HelmReleaseName = "flux"
 )
 
-// Configure sets up Flux OCIRepository and HelmRelease resources on the platform cluster
+// Configure sets up Flux OCIRepository and HelmRelease resources on the platform cluster.
 func Configure(cluster ManagedCluster, namespace string, obj *apiv1alpha1.Flux, pc *apiv1alpha1.ProviderConfig, cc spruntime.ClusterContext) {
 	ociRepo := NewManagedObject(&sourcev1.OCIRepository{
 		ObjectMeta: metav1.ObjectMeta{
@@ -118,7 +118,7 @@ func Configure(cluster ManagedCluster, namespace string, obj *apiv1alpha1.Flux, 
 				StorageNamespace: FluxNamespace,
 			}
 
-			// Add custom Helm values if provided
+			// Apply custom Helm values if provided (supports image localization, resources, etc.)
 			if pc.Spec.Values != nil && len(pc.Spec.Values.Raw) > 0 {
 				helmRelease.Spec.Values = pc.Spec.Values
 			}

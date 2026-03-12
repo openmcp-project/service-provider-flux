@@ -23,32 +23,36 @@ import (
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 )
 
-// EDIT THIS FILE!  THIS IS SCAFFOLDING FOR YOU TO OWN!
-// NOTE: json tags are required.  Any new fields you add must have json tags for the fields to be serialized.
-
 // ProviderConfigSpec defines the desired state of ProviderConfig
 type ProviderConfigSpec struct {
-	// INSERT ADDITIONAL SPEC FIELDS - desired state of cluster
-	// Important: Run "make" to regenerate code after modifying this file
-	// The following markers will use OpenAPI v3 schema to validate the value
-	// More info: https://book.kubebuilder.io/reference/markers/crd-validation.html
-
-	// ChartURL is the OCI registry URL for the Flux Helm chart
+	// ChartURL is the OCI registry URL for the Flux Helm chart.
 	// Example: oci://ghcr.io/fluxcd-community/charts/flux2
 	// +kubebuilder:validation:Required
 	ChartURL string `json:"chartUrl"`
 
-	// Values contains Helm values to override defaults for the Flux deployment
+	// Values contains Helm values to override defaults for the Flux deployment.
+	// This field supports all configuration options from the Flux community Helm chart.
+	// See https://github.com/fluxcd-community/helm-charts/tree/main/charts/flux2 for available options.
+	//
+	// Common use cases include:
+	// - Image localization for air-gapped environments
+	// - Resource limits and requests
+	// - Controller-specific configurations
+	// - Image pull secrets
+	//
+	// Example for air-gapped environments:
+	//   values:
+	//     helmController:
+	//       image: my-registry.example.com/fluxcd/helm-controller
+	//     sourceController:
+	//       image: my-registry.example.com/fluxcd/source-controller
+	//     imagePullSecrets:
+	//       - name: my-registry-secret
+	//
 	// +optional
 	Values *apiextensionsv1.JSON `json:"values,omitempty"`
 
-	// ImagePullSecret references a secret containing registry credentials
-	// for pulling images in air-gapped environments.
-	// The secret will be replicated to the target namespace.
-	// +optional
-	ImagePullSecret string `json:"imagePullSecret,omitempty"`
-
-	// PollInterval determines how often to reconcile resources to prevent drift
+	// PollInterval determines how often to reconcile resources to prevent drift.
 	// +optional
 	// +kubebuilder:default:="1m"
 	// +kubebuilder:validation:Format=duration
