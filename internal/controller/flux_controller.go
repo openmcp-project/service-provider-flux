@@ -18,33 +18,22 @@ package controller
 
 import (
 	"context"
+	"errors"
 	"fmt"
+	"reflect"
 	"time"
 
-	helmv2 "github.com/fluxcd/helm-controller/api/v2"
-	"github.com/fluxcd/pkg/apis/meta"
-	sourcev1 "github.com/fluxcd/source-controller/api/v1"
-	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+	corev1 "k8s.io/api/core/v1"
+	"k8s.io/utils/ptr"
 	ctrl "sigs.k8s.io/controller-runtime"
-	"sigs.k8s.io/controller-runtime/pkg/client"
-	logf "sigs.k8s.io/controller-runtime/pkg/log"
+	"sigs.k8s.io/controller-runtime/pkg/log"
 
 	"github.com/openmcp-project/controller-utils/pkg/clusters"
 	libutils "github.com/openmcp-project/openmcp-operator/lib/utils"
 
 	apiv1alpha1 "github.com/openmcp-project/service-provider-flux/api/v1alpha1"
-	spruntime "github.com/openmcp-project/service-provider-flux/pkg/spruntime"
-)
-
-const (
-	// FluxNamespace is the namespace where Flux components are deployed
-	FluxNamespace = "flux-system"
-
-	// OCIRepositoryName is the name of the Flux OCIRepository resource
-	OCIRepositoryName = "flux-helm-chart"
-
-	// HelmReleaseName is the name of the Flux HelmRelease resource
-	HelmReleaseName = "flux"
+	"github.com/openmcp-project/service-provider-flux/pkg/flux"
+	"github.com/openmcp-project/service-provider-flux/pkg/spruntime"
 )
 
 // FluxReconciler reconciles a Flux object
@@ -57,220 +46,101 @@ type FluxReconciler struct {
 	PodNamespace string
 }
 
-// createOrUpdateOCIRepository creates or updates the Flux OCIRepository
-// resource that points to the Flux Helm chart in an OCI registry.
-func (r *FluxReconciler) createOrUpdateOCIRepository(
-	ctx context.Context,
-	obj *apiv1alpha1.Flux,
-	pc *apiv1alpha1.ProviderConfig,
-	_ spruntime.ClusterContext,
-	namespace string,
-) error {
-	l := logf.FromContext(ctx)
-
-	ociRepo := &sourcev1.OCIRepository{
-		ObjectMeta: metav1.ObjectMeta{
-			Name:      OCIRepositoryName,
-			Namespace: namespace,
-		},
-	}
-
-	_, err := ctrl.CreateOrUpdate(ctx, r.PlatformCluster.Client(), ociRepo, func() error {
-		ociRepo.Spec.URL = pc.Spec.ChartURL
-		ociRepo.Spec.Interval = metav1.Duration{Duration: 10 * time.Minute}
-
-		// Set chart version from Flux object
-		if obj.Spec.Version != "" {
-			ociRepo.Spec.Reference = &sourcev1.OCIRepositoryRef{
-				Tag: obj.Spec.Version,
-			}
-		}
-
-		return nil
-	})
-
-	if err != nil {
-		l.Error(err, "failed to create or update OCIRepository")
-		return fmt.Errorf("failed to create OCIRepository: %w", err)
-	}
-
-	l.Info("created or updated OCIRepository on platform cluster",
-		"name", OCIRepositoryName,
-		"namespace", namespace)
-
-	return nil
-}
-
-// createOrUpdateHelmRelease creates or updates the Flux HelmRelease
-// resource that deploys Flux using the chart from OCIRepository.
-func (r *FluxReconciler) createOrUpdateHelmRelease(
-	ctx context.Context,
-	_ *apiv1alpha1.Flux,
-	pc *apiv1alpha1.ProviderConfig,
-	clusters spruntime.ClusterContext,
-	namespace string,
-) error {
-	l := logf.FromContext(ctx)
-
-	helmRelease := &helmv2.HelmRelease{
-		ObjectMeta: metav1.ObjectMeta{
-			Name:      HelmReleaseName,
-			Namespace: namespace,
-		},
-	}
-
-	_, err := ctrl.CreateOrUpdate(ctx, r.PlatformCluster.Client(), helmRelease, func() error {
-		helmRelease.Spec.Interval = metav1.Duration{Duration: 10 * time.Minute}
-		helmRelease.Spec.ChartRef = &helmv2.CrossNamespaceSourceReference{
-			Kind: "OCIRepository",
-			Name: OCIRepositoryName,
-		}
-
-		// Configure install behavior
-		retries := 3
-		helmRelease.Spec.Install = &helmv2.Install{
-			CRDs:            helmv2.Create,
-			CreateNamespace: true,
-			Remediation: &helmv2.InstallRemediation{
-				Retries: retries,
-			},
-		}
-
-		// Configure upgrade behavior
-		remediationStrategy := helmv2.RollbackRemediationStrategy
-		helmRelease.Spec.Upgrade = &helmv2.Upgrade{
-			CRDs: helmv2.CreateReplace,
-			Remediation: &helmv2.UpgradeRemediation{
-				Retries:  retries,
-				Strategy: &remediationStrategy,
-			},
-		}
-
-		// Set target namespace for Flux deployment
-		helmRelease.Spec.TargetNamespace = FluxNamespace
-		helmRelease.Spec.StorageNamespace = FluxNamespace
-
-		helmRelease.Spec.KubeConfig = &meta.KubeConfigReference{
-			SecretRef: &meta.SecretKeyReference{
-				Name: clusters.MCPAccessSecretKey.Name,
-				Key:  "kubeconfig",
-			},
-		}
-
-		// Add custom Helm values if provided
-		if pc.Spec.Values != nil && len(pc.Spec.Values.Raw) > 0 {
-			helmRelease.Spec.Values = pc.Spec.Values
-		}
-
-		return nil
-	})
-
-	if err != nil {
-		l.Error(err, "failed to create or update HelmRelease")
-		return fmt.Errorf("failed to create HelmRelease: %w", err)
-	}
-
-	l.Info("created or updated HelmRelease on platform cluster",
-		"name", HelmReleaseName,
-		"namespace", namespace)
-
-	return nil
-}
-
 // CreateOrUpdate is called on every add or update event
 func (r *FluxReconciler) CreateOrUpdate(ctx context.Context, obj *apiv1alpha1.Flux, pc *apiv1alpha1.ProviderConfig, clusters spruntime.ClusterContext) (ctrl.Result, error) {
-	l := logf.FromContext(ctx)
-
-	// Set status to progressing
-	spruntime.StatusProgressing(obj, "Reconciling", "Setting up Flux deployment")
-
-	// Get target namespace for Flux configuration resources
-	namespace, err := libutils.StableMCPNamespace(obj.Name, obj.Namespace)
+	spruntime.StatusProgressing(obj, "Reconciling", "Reconcile in progress")
+	mgr, err := r.createObjectManager(obj, pc, clusters)
 	if err != nil {
-		spruntime.StatusProgressing(obj, "ConfigError", fmt.Sprintf("Failed to determine tenant config namespace: %v", err))
-		return ctrl.Result{}, fmt.Errorf("failed to generate stable MCP namespace: %w", err)
-	}
-
-	// Step 1: Create or update OCIRepository
-	if err := r.createOrUpdateOCIRepository(ctx, obj, pc, clusters, namespace); err != nil {
-		spruntime.StatusProgressing(obj, "OCIRepositoryFailed",
-			fmt.Sprintf("Failed to create OCIRepository: %v", err))
+		spruntime.StatusProgressing(obj, "ReconcileError", err.Error())
 		return ctrl.Result{}, err
 	}
-
-	// Step 2: Create or update HelmRelease
-	if err := r.createOrUpdateHelmRelease(ctx, obj, pc, clusters, namespace); err != nil {
-		spruntime.StatusProgressing(obj, "HelmReleaseFailed",
-			fmt.Sprintf("Failed to create HelmRelease: %v", err))
-		return ctrl.Result{}, err
+	results := mgr.Apply(ctx)
+	managedResources, resultContainsErrors := resultsToResources(ctx, results)
+	obj.Status.Resources = managedResources
+	if allResourcesReady(managedResources) {
+		spruntime.StatusReady(obj)
 	}
-
-	// Set status to ready
-	spruntime.StatusReady(obj)
-
-	l.Info("successfully reconciled Flux deployment",
-		"namespace", namespace,
-		"version", obj.Spec.Version)
-
+	if resultContainsErrors {
+		resultWithErrors := errors.New("resources contain reconcile errors")
+		spruntime.StatusProgressing(obj, "ReconcileError", resultWithErrors.Error())
+		return ctrl.Result{}, resultWithErrors
+	}
 	return ctrl.Result{}, nil
 }
 
 // Delete is called on every delete event
-func (r *FluxReconciler) Delete(ctx context.Context, obj *apiv1alpha1.Flux, _ *apiv1alpha1.ProviderConfig, _ spruntime.ClusterContext) (ctrl.Result, error) {
-	l := logf.FromContext(ctx)
-
-	// Set status to terminating
+func (r *FluxReconciler) Delete(ctx context.Context, obj *apiv1alpha1.Flux, pc *apiv1alpha1.ProviderConfig, clusters spruntime.ClusterContext) (ctrl.Result, error) {
 	spruntime.StatusTerminating(obj)
-
-	// Get target namespace for Flux configuration resources
-	namespace, err := libutils.StableMCPNamespace(obj.Name, obj.Namespace)
+	mgr, err := r.createObjectManager(obj, pc, clusters)
 	if err != nil {
-		spruntime.StatusProgressing(obj, "ConfigError", fmt.Sprintf("Failed to determine tenant config namespace: %v", err))
-		return ctrl.Result{}, fmt.Errorf("failed to generate stable MCP namespace: %w", err)
+		spruntime.StatusProgressing(obj, "ReconcileError", err.Error())
+		return ctrl.Result{}, err
 	}
-
-	var objects []client.Object // nolint:prealloc
-
-	// Delete HelmRelease first (triggers Helm uninstall)
-	helmRelease := &helmv2.HelmRelease{
-		ObjectMeta: metav1.ObjectMeta{
-			Name:      HelmReleaseName,
-			Namespace: namespace,
-		},
+	results := mgr.Delete(ctx)
+	managedResources, resultContainsErrors := resultsToResources(ctx, results)
+	obj.Status.Resources = managedResources
+	if flux.AllDeleted(results) {
+		return ctrl.Result{}, nil
 	}
-
-	objects = append(objects, helmRelease)
-
-	// Delete OCIRepository
-	ociRepo := &sourcev1.OCIRepository{
-		ObjectMeta: metav1.ObjectMeta{
-			Name:      OCIRepositoryName,
-			Namespace: namespace,
-		},
+	if resultContainsErrors {
+		resultWithErrors := errors.New("resources contain reconcile errors")
+		spruntime.StatusProgressing(obj, "ReconcileError", resultWithErrors.Error())
+		return ctrl.Result{}, resultWithErrors
 	}
+	return ctrl.Result{
+		RequeueAfter: time.Second * 5,
+	}, nil
+}
 
-	objects = append(objects, ociRepo)
+func (r *FluxReconciler) createObjectManager(obj *apiv1alpha1.Flux, pc *apiv1alpha1.ProviderConfig, clusters spruntime.ClusterContext) (flux.Manager, error) {
+	tenantNamespace, err := libutils.StableMCPNamespace(obj.Name, obj.Namespace)
+	if err != nil {
+		return nil, fmt.Errorf("failed to determine tenant namespace for Flux deployment: %w", err)
+	}
+	platformCluster := flux.NewManagedCluster(r.PlatformCluster, r.PlatformCluster.RESTConfig(), tenantNamespace, flux.PlatformCluster)
+	flux.Configure(platformCluster, tenantNamespace, obj, pc, clusters)
+	mgr := flux.NewManager()
+	mgr.AddCluster(platformCluster)
+	return mgr, nil
+}
 
-	objectsStillExist := false
-	for _, managedObj := range objects {
-		if err := r.PlatformCluster.Client().Delete(ctx, managedObj); client.IgnoreNotFound(err) != nil {
-			spruntime.StatusFailed(obj, err.Error())
-			return ctrl.Result{}, fmt.Errorf("delete object failed: %w", err)
+func resultsToResources(ctx context.Context, results []flux.Result) ([]apiv1alpha1.ManagedResource, bool) {
+	l := log.FromContext(ctx)
+	containsError := false
+	resources := make([]apiv1alpha1.ManagedResource, 0, len(results))
+	for _, res := range results {
+		obj := res.Object.GetObject()
+		status := res.Object.GetStatus(apiv1alpha1.ResourceLocation(res.Cluster.GetClusterType()))
+		resources = append(resources, apiv1alpha1.ManagedResource{
+			TypedObjectReference: corev1.TypedObjectReference{
+				Kind:      reflect.TypeOf(obj).Elem().Name(),
+				Name:      obj.GetName(),
+				Namespace: nilIfEmptyString(obj.GetNamespace()),
+			},
+			Phase:    status.Phase,
+			Message:  status.Message,
+			Location: status.Location,
+		})
+		if res.Error != nil {
+			containsError = true
+			l.Error(res.Error, "objectID", flux.ObjectID(obj))
 		}
-		// we ignore any other error because we assume that if deleting worked, getting should not fail with anything other than
-		// not found.
-		if err := r.PlatformCluster.Client().Get(ctx, client.ObjectKeyFromObject(managedObj), managedObj); err != nil {
-			objectsStillExist = true
+	}
+	return resources, containsError
+}
+
+func nilIfEmptyString(str string) *string {
+	if str == "" {
+		return nil
+	}
+	return ptr.To(str)
+}
+
+func allResourcesReady(resources []apiv1alpha1.ManagedResource) bool {
+	for _, res := range resources {
+		if res.Phase != apiv1alpha1.Ready {
+			return false
 		}
 	}
-
-	if objectsStillExist {
-		return ctrl.Result{
-			RequeueAfter: time.Second * 10,
-		}, nil
-	}
-
-	l.Info("successfully deleted Flux deployment", "namespace", namespace)
-	spruntime.StatusReady(obj)
-	return ctrl.Result{}, nil
+	return true
 }

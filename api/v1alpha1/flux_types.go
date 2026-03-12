@@ -17,7 +17,28 @@ limitations under the License.
 package v1alpha1
 
 import (
+	corev1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+)
+
+// InstancePhase is a custom type representing the phase of a service instance.
+type InstancePhase string
+
+// ResourceLocation is a custom type representing the location of a resource.
+type ResourceLocation string
+
+// Constants representing the phases of an instance lifecycle.
+const (
+	Pending     InstancePhase = "Pending"
+	Progressing InstancePhase = "Progressing"
+	Ready       InstancePhase = "Ready"
+	Failed      InstancePhase = "Failed"
+	Terminating InstancePhase = "Terminating"
+	Unknown     InstancePhase = "Unknown"
+
+	ManagedControlPlane ResourceLocation = "ManagedControlPlane"
+	PlatformCluster     ResourceLocation = "PlatformCluster"
+	WorkloadCluster     ResourceLocation = "WorkloadCluster"
 )
 
 // FluxSpec defines the desired state of Flux
@@ -51,6 +72,21 @@ type FluxStatus struct {
 	ObservedGeneration int64 `json:"observedGeneration"`
 	// Phase is the current phase of the resource.
 	Phase string `json:"phase"`
+	// Resources managed by this Flux instance
+	// +optional
+	Resources []ManagedResource `json:"resources,omitempty"`
+}
+
+// ManagedResource defines a kubernetes object with its lifecycle phase
+type ManagedResource struct {
+	corev1.TypedObjectReference `json:",inline"`
+
+	// +required
+	Phase InstancePhase `json:"phase"`
+	// +optional
+	Message string `json:"message,omitempty"`
+	// +optional
+	Location ResourceLocation `json:"location,omitempty"`
 }
 
 // Flux is the Schema for the fluxs API
