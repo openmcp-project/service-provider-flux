@@ -41,26 +41,55 @@ spec:
           spec:
             description: spec defines the desired state of ProviderConfig
             properties:
+              chartPullSecret:
+                description: |-
+                  ChartPullSecret is the name of a Secret in the openmcp-system namespace
+                  containing credentials to pull the Helm chart from a private OCI registry.
+                  The secret will be copied to the tenant namespace on the platform cluster
+                  and referenced by the OCIRepository.
+                  The secret must be of type kubernetes.io/dockerconfigjson.
+                type: string
               chartUrl:
                 description: |-
-                  ChartURL is the OCI registry URL for the Flux Helm chart
+                  ChartURL is the OCI registry URL for the Flux Helm chart.
                   Example: oci://ghcr.io/fluxcd-community/charts/flux2
                 type: string
-              imagePullSecret:
+              imagePullSecrets:
                 description: |-
-                  ImagePullSecret references a secret containing registry credentials
-                  for pulling images in air-gapped environments.
-                  The secret will be replicated to the target namespace.
-                type: string
+                  ImagePullSecrets is a list of Secret names in the openmcp-system namespace
+                  containing credentials to pull Flux controller images from private registries.
+                  These secrets will be copied to the flux-system namespace on the ManagedControlPlane
+                  and configured in the Helm values for the Flux deployment.
+                  The secrets must be of type kubernetes.io/dockerconfigjson.
+                items:
+                  type: string
+                type: array
               pollInterval:
                 default: 1m
                 description: PollInterval determines how often to reconcile resources
-                  to prevent drift
+                  to prevent drift.
                 format: duration
                 type: string
               values:
-                description: Values contains Helm values to override defaults for
-                  the Flux deployment
+                description: |-
+                  Values contains Helm values to override defaults for the Flux deployment.
+                  This field supports all configuration options from the Flux community Helm chart.
+                  See https://github.com/fluxcd-community/helm-charts/tree/main/charts/flux2 for available options.
+
+                  Note: If ImagePullSecrets is specified, imagePullSecrets values will be
+                  automatically merged with any imagePullSecrets specified here.
+
+                  Common use cases include:
+                  - Image localization for air-gapped environments
+                  - Resource limits and requests
+                  - Controller-specific configurations
+
+                  Example for air-gapped environments:
+                    values:
+                      helmController:
+                        image: my-registry.example.com/fluxcd/helm-controller
+                      sourceController:
+                        image: my-registry.example.com/fluxcd/source-controller
                 x-kubernetes-preserve-unknown-fields: true
             required:
             - chartUrl

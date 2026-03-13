@@ -50,9 +50,9 @@ func TestFluxReconciler_CreateOrUpdate(t *testing.T) {
 		wantStatusPhase string
 	}{
 		{
-			name: "managed objects ready -> status ready",
-			obj:  createFluxObj("2.4.0"),
-			pc:   createProviderConfig(),
+			name:     "managed objects ready -> status ready",
+			obj:      createFluxObj("2.4.0"),
+			pc:       createProviderConfig(),
 			clusters: fakeClusterContext(t),
 			manager: fakeManager{
 				results: []flux.Result{
@@ -65,9 +65,9 @@ func TestFluxReconciler_CreateOrUpdate(t *testing.T) {
 			wantErr:         false,
 		},
 		{
-			name: "managed objects not ready -> status progressing",
-			obj:  createFluxObj("2.4.0"),
-			pc:   createProviderConfig(),
+			name:     "managed objects not ready -> status progressing",
+			obj:      createFluxObj("2.4.0"),
+			pc:       createProviderConfig(),
 			clusters: fakeClusterContext(t),
 			manager: fakeManager{
 				results: []flux.Result{
@@ -80,9 +80,9 @@ func TestFluxReconciler_CreateOrUpdate(t *testing.T) {
 			wantErr:         false,
 		},
 		{
-			name: "some objects ready, some progressing -> status progressing",
-			obj:  createFluxObj("2.4.0"),
-			pc:   createProviderConfig(),
+			name:     "some objects ready, some progressing -> status progressing",
+			obj:      createFluxObj("2.4.0"),
+			pc:       createProviderConfig(),
 			clusters: fakeClusterContext(t),
 			manager: fakeManager{
 				results: []flux.Result{
@@ -95,9 +95,9 @@ func TestFluxReconciler_CreateOrUpdate(t *testing.T) {
 			wantErr:         false,
 		},
 		{
-			name: "managed objects with errors -> error",
-			obj:  createFluxObj("2.4.0"),
-			pc:   createProviderConfig(),
+			name:     "managed objects with errors -> error",
+			obj:      createFluxObj("2.4.0"),
+			pc:       createProviderConfig(),
 			clusters: fakeClusterContext(t),
 			manager: fakeManager{
 				results: []flux.Result{
@@ -149,13 +149,13 @@ func TestFluxReconciler_CreateOrUpdate(t *testing.T) {
 
 func TestFluxReconciler_Delete(t *testing.T) {
 	tests := []struct {
-		name    string
-		obj     *apiv1alpha1.Flux
-		pc      *apiv1alpha1.ProviderConfig
+		name     string
+		obj      *apiv1alpha1.Flux
+		pc       *apiv1alpha1.ProviderConfig
 		clusters spruntime.ClusterContext
-		manager flux.Manager
-		want    ctrl.Result
-		wantErr bool
+		manager  flux.Manager
+		want     ctrl.Result
+		wantErr  bool
 	}{
 		{
 			name:     "all objects deleted -> no requeue",

@@ -30,8 +30,8 @@ import (
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/runtime"
 	"k8s.io/apimachinery/pkg/types"
-	"k8s.io/client-go/rest"
 	clientgoscheme "k8s.io/client-go/kubernetes/scheme"
+	"k8s.io/client-go/rest"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 	"sigs.k8s.io/controller-runtime/pkg/client/fake"
 
@@ -87,8 +87,8 @@ func TestMergeImagePullSecrets(t *testing.T) {
 			},
 		},
 		{
-			name:        "deduplicate within spec secrets",
-			specSecrets: []string{"secret-a", "secret-a", "secret-b"},
+			name:          "deduplicate within spec secrets",
+			specSecrets:   []string{"secret-a", "secret-a", "secret-b"},
 			valuesSecrets: nil,
 			expected: []map[string]string{
 				{"name": "secret-a"},
