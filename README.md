@@ -1,77 +1,194 @@
 [![REUSE status](https://api.reuse.software/badge/github.com/openmcp-project/service-provider-flux)](https://api.reuse.software/info/github.com/openmcp-project/service-provider-flux)
 
-# service-provider-flux
+# 🚀 service-provider-flux
 
-## About this project
+A service provider for managing [FluxCD](https://fluxcd.io/) deployments within a ManagedControlPlane environment. This provider enables GitOps capabilities by automatically installing and configuring Flux on managed control planes.
 
-A template for building @openmcp-project Service Providers
+## 📖 Overview
 
-## Requirements and Setup
+The Flux service provider automates the lifecycle management of Flux installations, including:
 
-1. Create a new repository based on this template.
-2. Execute the template to create a new `ServiceProvider`.
-3. Test your `ServiceProvider`.
+- 🔄 **Automated Flux Deployment** - Deploys Flux via Helm to ManagedControlPlanes
+- 🔐 **Air-Gapped Support** - Full support for private registries and air-gapped environments
+- 🔑 **Secret Management** - Automatic copying of registry credentials across cluster boundaries
+- 📊 **Status Tracking** - Real-time status reporting of all managed resources
 
-The template includes a basic code generation command that lets you create a `ServiceProvider` for your Go module, API kind and group.
-You can also choose to add sample code to get a fully functional `ServiceProvider`.
+## 🏗️ Architecture
 
-For a complete usage overview with the default settings, run:
-
-```shell
-go run ./cmd/template -h
+```
+Platform Cluster                         ManagedControlPlane
+┌─────────────────────────────────────┐  ┌─────────────────────────┐
+│  openmcp-system namespace           │  │  flux-system namespace  │
+│  ┌─────────────────────────────┐    │  │  ┌───────────────────┐  │
+│  │ ProviderConfig              │    │  │  │ Flux Controllers  │  │
+│  │ chart-pull-secret           │────┼──┼─▶│ image-pull-secret │  │
+│  └─────────────────────────────┘    │  │  └───────────────────┘  │
+└─────────────────────────────────────┘  └─────────────────────────┘
+            │
+            ▼
+┌─────────────────────────────────────┐
+│  tenant namespace (mcp--xxx)        │
+│  ┌─────────────────────────────┐    │
+│  │ OCIRepository               │    │
+│  │ HelmRelease                 │    │
+│  └─────────────────────────────┘    │
+└─────────────────────────────────────┘
 ```
 
-Then execute the template, for example:
+## 🚦 Getting Started
 
-```shell
-go run ./cmd/template -module github.com/yourorg/yourrepo -kind YourKind -group yourgroup
-```
+### Prerequisites
 
-Running End-to-End tests:
+- Go 1.21+
+- [Task](https://taskfile.dev/) (task runner)
+- Docker (for building images)
+- Access to an openMCP environment
 
-```shell
+### 🛠️ Local Development
+
+1. **Clone the repository**
+   ```bash
+   git clone https://github.com/openmcp-project/service-provider-flux.git
+   cd service-provider-flux
+   ```
+
+2. **Install dependencies**
+   ```bash
+   go mod download
+   ```
+
+3. **Build the binary**
+   ```bash
+   task build
+   ```
+
+4. **Run tests**
+   ```bash
+   task test
+   ```
+
+5. **Build the container image**
+   ```bash
+   task build:img:build
+   ```
+
+### 🧪 Running End-to-End Tests
+
+```bash
 task test-e2e
 ```
 
-## CLI Flags
+This will build the image and run the full e2e test suite.
 
-### Template Generator Flags
+## 📝 API Reference
 
-The template generator (`cmd/template`) supports the following flags:
+### Flux
 
-- `-module`: Go module path (default: `github.com/openmcp-project/service-provider-template`)
-- `-kind`: GVK kind name (default: `FooService`)
-- `-group`: GVK group prefix, will be suffixed with `services.openmcp.cloud` (default: `foo`)
-- `-v`: Generate with sample code (default: `false`)
-- `-w`: Generate a service provider that reconciles its `DomainServiceAPI` on the [WorkloadCluster](https://openmcp-project.github.io/docs/about/design/service-provider#deployment-model) (default: `false`)
+The `Flux` resource represents a Flux installation on a ManagedControlPlane.
 
-### Service Provider Runtime Flags
+```yaml
+apiVersion: flux.services.openmcp.cloud/v1alpha1
+kind: Flux
+metadata:
+  name: my-flux
+  namespace: default
+spec:
+  version: "2.4.0"
+```
 
-The generated service provider supports the following runtime flags:
+| Field | Type | Description |
+|-------|------|-------------|
+| `spec.version` | string | The version of Flux to install |
 
-- `--verbosity`: Logging verbosity level (see [controller-runtime logging](https://github.com/kubernetes-sigs/controller-runtime/blob/main/TMP-LOGGING.md))
-- `--environment`: Name of the environment (required for operation)
-- `--provider-name`: Name of the provider resource (required for operation)
-- `--metrics-bind-address`: Address for the metrics endpoint (default: `0`, use `:8443` for HTTPS or `:8080` for HTTP)
-- `--health-probe-bind-address`: Address for health probe endpoint (default: `:8081`)
-- `--leader-elect`: Enable leader election for controller manager (default: `false`)
-- `--metrics-secure`: Serve metrics endpoint securely via HTTPS (default: `true`)
-- `--enable-http2`: Enable HTTP/2 for metrics and webhook servers (default: `false`)
+### ProviderConfig
 
-For a complete list of available flags, run the generated binary with `-h` or `--help`.
+The `ProviderConfig` resource configures global settings for all Flux deployments.
 
-## Support, Feedback, Contributing
+```yaml
+apiVersion: flux.services.openmcp.cloud/v1alpha1
+kind: ProviderConfig
+metadata:
+  name: flux-provider-config
+spec:
+  # Flux Helm chart location
+  chartUrl: "oci://ghcr.io/fluxcd-community/charts/flux2"
+
+  # Optional: Secret for private chart registry
+  chartPullSecret: "chart-registry-credentials"
+
+  # Optional: Secrets for private image registry
+  imagePullSecrets:
+    - "image-registry-credentials"
+
+  # Optional: Custom Helm values
+  values:
+    helmController:
+      image: my-registry.example.com/fluxcd/helm-controller
+    sourceController:
+      image: my-registry.example.com/fluxcd/source-controller
+
+  # Optional: Reconciliation interval
+  pollInterval: "5m"
+```
+
+| Field | Type | Description |
+|-------|------|-------------|
+| `spec.chartUrl` | string | OCI registry URL for the Flux Helm chart |
+| `spec.chartPullSecret` | string | Secret name for chart registry authentication |
+| `spec.imagePullSecrets` | []string | Secret names for image registry authentication |
+| `spec.values` | object | Custom Helm values for Flux deployment |
+| `spec.pollInterval` | duration | How often to reconcile resources (default: 1m) |
+
+## 🔐 Air-Gapped Environments
+
+For air-gapped or enterprise environments, see the [Image Localization Guide](docs/image-localization.md).
+
+Quick example:
+
+```yaml
+apiVersion: flux.services.openmcp.cloud/v1alpha1
+kind: ProviderConfig
+metadata:
+  name: flux-airgapped
+spec:
+  chartUrl: "oci://harbor.internal/charts/flux2"
+  chartPullSecret: "harbor-credentials"
+  imagePullSecrets:
+    - "harbor-credentials"
+  values:
+    helmController:
+      image: harbor.internal/fluxcd/helm-controller
+    sourceController:
+      image: harbor.internal/fluxcd/source-controller
+    kustomizeController:
+      image: harbor.internal/fluxcd/kustomize-controller
+    notificationController:
+      image: harbor.internal/fluxcd/notification-controller
+```
+
+## 🔧 Development Tasks
+
+| Command | Description |
+|---------|-------------|
+| `task build` | Build the binary |
+| `task build:img:build` | Build the container image |
+| `task test` | Run unit tests |
+| `task test-e2e` | Run end-to-end tests |
+| `task generate` | Generate CRDs and code |
+| `task validate` | Run linters and formatters |
+
+## 🤝 Support, Feedback, Contributing
 
 This project is open to feature requests/suggestions, bug reports etc. via [GitHub issues](https://github.com/openmcp-project/service-provider-flux/issues). Contribution and feedback are encouraged and always welcome. For more information about how to contribute, the project structure, as well as additional contribution information, see our [Contribution Guidelines](CONTRIBUTING.md).
 
-## Security / Disclosure
+## 🔒 Security / Disclosure
 
 If you find any bug that may be a security problem, please follow our instructions at [in our security policy](https://github.com/openmcp-project/service-provider-flux/security/policy) on how to report it. Please do not create GitHub issues for security-related doubts or problems.
 
-## Code of Conduct
+## 📜 Code of Conduct
 
 We as members, contributors, and leaders pledge to make participation in our community a harassment-free experience for everyone. By participating in this project, you agree to abide by its [Code of Conduct](https://github.com/SAP/.github/blob/main/CODE_OF_CONDUCT.md) at all times.
 
-## Licensing
+## 📄 Licensing
 
 Copyright 2025 SAP SE or an SAP affiliate company and service-provider-flux contributors. Please see our [LICENSE](LICENSE) for copyright and license information. Detailed information including third-party components and their licensing/copyright information is available [via the REUSE tool](https://api.reuse.software/info/github.com/openmcp-project/service-provider-flux).
