@@ -1,14 +1,48 @@
-# Image Localization for Air-Gapped Environments
+# Air-Gapped Environment Configuration
 
-This document describes how to configure custom image registries for Flux deployments in air-gapped or enterprise environments using the `values` field in the ProviderConfig.
+This document describes how to configure the Flux service provider for air-gapped or enterprise environments where images and Helm charts need to be pulled from private registries.
 
 ## Overview
 
-The Flux service provider uses the [Flux community Helm chart](https://github.com/fluxcd-community/helm-charts/tree/main/charts/flux2), which provides comprehensive configuration options for image localization. All chart options can be configured through the `spec.values` field in the ProviderConfig.
+In air-gapped environments, you typically need to:
+
+1. **Mirror the Flux Helm chart** to your internal OCI registry
+2. **Mirror Flux controller images** to your internal container registry
+3. **Configure authentication** for both chart and image pulls
+
+The Flux service provider handles this through:
+
+- **`chartPullSecret`**: Credentials for pulling the Helm chart from a private OCI registry
+- **`imagePullSecrets`**: Credentials for pulling Flux controller images from private registries
+- **`values`**: Custom Helm values for image location overrides
+
+## Secret Flow
+
+```
+Platform Cluster                         ManagedControlPlane
+┌─────────────────────────────────────┐  ┌─────────────────────────┐
+│  openmcp-system namespace           │  │  flux-system namespace  │
+│  ┌─────────────────────────────┐    │  │  ┌───────────────────┐  │
+│  │ chart-pull-secret           │────┼──┼─▶│ (not copied here) │  │
+│  │ image-pull-secret-1         │────┼──┼──▶│ image-pull-secret │  │
+│  │ image-pull-secret-2         │────┼──┼──▶│ image-pull-secret │  │
+│  └─────────────────────────────┘    │  │  └───────────────────┘  │
+└─────────────────────────────────────┘  └─────────────────────────┘
+            │
+            ▼
+┌─────────────────────────────────────┐
+│  tenant namespace (mcp--xxx)        │
+│  ┌─────────────────────────────┐    │
+│  │ chart-pull-secret (copy)    │◀───┘
+│  │ OCIRepository (refs secret) │
+│  │ HelmRelease                 │
+│  └─────────────────────────────┘
+└─────────────────────────────────────┘
+```
 
 ## Configuration
 
-### Basic Structure
+### ProviderConfig
 
 ```yaml
 apiVersion: flux.services.openmcp.cloud/v1alpha1
@@ -16,87 +50,22 @@ kind: ProviderConfig
 metadata:
   name: flux-provider-config
 spec:
-  # Flux Helm chart from your internal registry
-  chartUrl: "oci://my-registry.example.com/charts/flux2"
-
-  # Helm values for image localization and other configurations
-  values:
-    helmController:
-      image: my-registry.example.com/fluxcd/helm-controller
-    sourceController:
-      image: my-registry.example.com/fluxcd/source-controller
-    kustomizeController:
-      image: my-registry.example.com/fluxcd/kustomize-controller
-    notificationController:
-      image: my-registry.example.com/fluxcd/notification-controller
-    imageAutomationController:
-      image: my-registry.example.com/fluxcd/image-automation-controller
-    imageReflectorController:
-      image: my-registry.example.com/fluxcd/image-reflector-controller
-    imagePullSecrets:
-      - name: my-registry-secret
-```
-
-## Flux Controllers
-
-The Flux Helm chart supports configuring the following controllers:
-
-| Controller | Values Key | Default Image |
-|------------|------------|---------------|
-| Helm Controller | `helmController` | `ghcr.io/fluxcd/helm-controller` |
-| Source Controller | `sourceController` | `ghcr.io/fluxcd/source-controller` |
-| Kustomize Controller | `kustomizeController` | `ghcr.io/fluxcd/kustomize-controller` |
-| Notification Controller | `notificationController` | `ghcr.io/fluxcd/notification-controller` |
-| Image Automation Controller | `imageAutomationController` | `ghcr.io/fluxcd/image-automation-controller` |
-| Image Reflector Controller | `imageReflectorController` | `ghcr.io/fluxcd/image-reflector-controller` |
-
-### Controller Configuration Options
-
-Each controller supports the following configuration:
-
-```yaml
-values:
-  helmController:
-    # Container image (without tag)
-    image: my-registry.example.com/fluxcd/helm-controller
-    # Image tag (defaults to chart appVersion)
-    tag: v1.0.0
-    # Image pull policy
-    imagePullPolicy: IfNotPresent
-    # Resource limits and requests
-    resources:
-      limits:
-        cpu: 1000m
-        memory: 1Gi
-      requests:
-        cpu: 100m
-        memory: 64Mi
-    # Additional annotations
-    annotations: {}
-    # Additional labels
-    labels: {}
-    # Node selector
-    nodeSelector: {}
-    # Tolerations
-    tolerations: []
-    # Affinity rules
-    affinity: {}
-```
-
-## Examples
-
-### Complete Air-Gapped Setup
-
-```yaml
-apiVersion: flux.services.openmcp.cloud/v1alpha1
-kind: ProviderConfig
-metadata:
-  name: flux-airgapped
-spec:
+  # Flux Helm chart location (private OCI registry)
   chartUrl: "oci://registry.internal.corp/charts/flux2"
-  pollInterval: "5m"
+
+  # Secret for authenticating to the chart OCI registry
+  # Must exist in openmcp-system namespace
+  # Will be copied to the tenant namespace on the platform cluster
+  chartPullSecret: "chart-registry-credentials"
+
+  # Secrets for authenticating to the image registry
+  # Must exist in openmcp-system namespace
+  # Will be copied to flux-system namespace on the ManagedControlPlane
+  imagePullSecrets:
+    - "image-registry-credentials"
+
+  # Helm values for image location overrides
   values:
-    # Image configuration for all controllers
     helmController:
       image: registry.internal.corp/fluxcd/helm-controller
     sourceController:
@@ -105,138 +74,159 @@ spec:
       image: registry.internal.corp/fluxcd/kustomize-controller
     notificationController:
       image: registry.internal.corp/fluxcd/notification-controller
-    imageAutomationController:
-      image: registry.internal.corp/fluxcd/image-automation-controller
-    imageReflectorController:
-      image: registry.internal.corp/fluxcd/image-reflector-controller
-
-    # Image pull secrets for authentication
-    imagePullSecrets:
-      - name: internal-registry-credentials
-
-    # CLI image (used for pre-flight checks)
-    cli:
-      image: registry.internal.corp/fluxcd/flux-cli
 ```
 
-### Minimal Configuration (Single Registry)
+### Creating Secrets
 
-If all your images are mirrored to a single registry with the same path structure:
+Secrets must be created in the `openmcp-system` namespace on the platform cluster:
+
+```bash
+# Chart pull secret (for OCI registry authentication)
+kubectl create secret docker-registry chart-registry-credentials \
+  --namespace openmcp-system \
+  --docker-server=registry.internal.corp \
+  --docker-username=<username> \
+  --docker-password=<password>
+
+# Image pull secret (for container image authentication)
+kubectl create secret docker-registry image-registry-credentials \
+  --namespace openmcp-system \
+  --docker-server=registry.internal.corp \
+  --docker-username=<username> \
+  --docker-password=<password>
+```
+
+## How It Works
+
+### Chart Pull Secret
+
+1. The secret specified in `chartPullSecret` is copied from `openmcp-system` to the tenant namespace on the platform cluster
+2. The `OCIRepository` resource references this secret via `spec.secretRef`
+3. The Flux Source Controller uses this secret to authenticate when pulling the Helm chart
+
+### Image Pull Secrets
+
+1. Secrets specified in `imagePullSecrets` are copied from `openmcp-system` on the platform cluster to `flux-system` on the ManagedControlPlane
+2. The Helm values are automatically configured with `imagePullSecrets` referencing these secrets
+3. The Flux controller pods use these secrets when pulling images
+
+### Value Merging
+
+Image pull secrets from `spec.imagePullSecrets` are automatically merged with any `imagePullSecrets` specified in `spec.values`. This allows you to use both fields together:
 
 ```yaml
 apiVersion: flux.services.openmcp.cloud/v1alpha1
 kind: ProviderConfig
 metadata:
-  name: flux-config
+  name: example
 spec:
-  chartUrl: "oci://mirror.corp/charts/flux2"
+  # These secrets will be copied to the MCP and referenced in Helm values
+  imagePullSecrets:
+    - "primary-registry-credentials"
+
+  # You can also specify additional imagePullSecrets directly in values
+  values:
+    imagePullSecrets:
+      - name: "secondary-registry-credentials"
+    helmController:
+      image: registry.internal.corp/fluxcd/helm-controller
+```
+
+The resulting Helm values will contain a merged, deduplicated list:
+
+```yaml
+imagePullSecrets:
+  - name: primary-registry-credentials    # from spec.imagePullSecrets
+  - name: secondary-registry-credentials  # from spec.values.imagePullSecrets
+helmController:
+  image: registry.internal.corp/fluxcd/helm-controller
+```
+
+**Merge behavior:**
+- Secrets from `spec.imagePullSecrets` are added first
+- Secrets from `spec.values.imagePullSecrets` are appended
+- Duplicates (by name) are automatically removed
+- Other values in `spec.values` are preserved as-is
+
+## Complete Example
+
+### Air-Gapped Setup
+
+```yaml
+apiVersion: flux.services.openmcp.cloud/v1alpha1
+kind: ProviderConfig
+metadata:
+  name: flux-airgapped
+spec:
+  chartUrl: "oci://harbor.corp.internal/charts/flux2"
+  chartPullSecret: "harbor-credentials"
+  imagePullSecrets:
+    - "harbor-credentials"
   values:
     helmController:
-      image: mirror.corp/fluxcd/helm-controller
+      image: harbor.corp.internal/fluxcd/helm-controller
     sourceController:
-      image: mirror.corp/fluxcd/source-controller
+      image: harbor.corp.internal/fluxcd/source-controller
     kustomizeController:
-      image: mirror.corp/fluxcd/kustomize-controller
+      image: harbor.corp.internal/fluxcd/kustomize-controller
     notificationController:
-      image: mirror.corp/fluxcd/notification-controller
-    imagePullSecrets:
-      - name: mirror-creds
-```
-
-### With Custom Resource Limits
-
-```yaml
-apiVersion: flux.services.openmcp.cloud/v1alpha1
-kind: ProviderConfig
-metadata:
-  name: flux-config
-spec:
-  chartUrl: "oci://ghcr.io/fluxcd-community/charts/flux2"
-  values:
-    helmController:
-      resources:
-        limits:
-          memory: 2Gi
-        requests:
-          memory: 256Mi
-    sourceController:
-      resources:
-        limits:
-          memory: 1Gi
-```
-
-### Disabling Unused Controllers
-
-```yaml
-apiVersion: flux.services.openmcp.cloud/v1alpha1
-kind: ProviderConfig
-metadata:
-  name: flux-minimal
-spec:
-  chartUrl: "oci://ghcr.io/fluxcd-community/charts/flux2"
-  values:
-    # Only enable controllers you need
+      image: harbor.corp.internal/fluxcd/notification-controller
     imageAutomationController:
-      create: false
+      image: harbor.corp.internal/fluxcd/image-automation-controller
+      create: false  # Disable if not needed
     imageReflectorController:
-      create: false
-    notificationController:
-      create: false
+      image: harbor.corp.internal/fluxcd/image-reflector-controller
+      create: false  # Disable if not needed
 ```
 
 ## Mirroring Images
 
-To mirror FluxCD images to your internal registry, you can use tools like:
-
-- **skopeo**: `skopeo copy docker://ghcr.io/fluxcd/helm-controller:v1.0.0 docker://my-registry/fluxcd/helm-controller:v1.0.0`
-- **crane**: `crane copy ghcr.io/fluxcd/helm-controller:v1.0.0 my-registry/fluxcd/helm-controller:v1.0.0`
-- **docker**: `docker pull ghcr.io/fluxcd/helm-controller:v1.0.0 && docker tag ... && docker push ...`
-
-### Required Images
-
-For a complete Flux deployment, mirror these images:
+To mirror FluxCD images to your internal registry:
 
 ```bash
-# Core controllers
-ghcr.io/fluxcd/helm-controller
-ghcr.io/fluxcd/source-controller
-ghcr.io/fluxcd/kustomize-controller
-ghcr.io/fluxcd/notification-controller
+# Mirror Helm chart
+skopeo copy \
+  docker://ghcr.io/fluxcd-community/charts/flux2:2.x.x \
+  docker://harbor.corp.internal/charts/flux2:2.x.x
 
-# Image automation (if used)
-ghcr.io/fluxcd/image-automation-controller
-ghcr.io/fluxcd/image-reflector-controller
-
-# CLI (for pre-flight checks)
-ghcr.io/fluxcd/flux-cli
+# Mirror controller images
+for img in helm-controller source-controller kustomize-controller notification-controller; do
+  skopeo copy \
+    docker://ghcr.io/fluxcd/${img}:v1.x.x \
+    docker://harbor.corp.internal/fluxcd/${img}:v1.x.x
+done
 ```
 
 ## Troubleshooting
 
-### Verifying Configuration
+### Check Secret Copying
 
-Check the HelmRelease values on the platform cluster:
-
-```bash
-kubectl get helmrelease flux -n <tenant-namespace> -o jsonpath='{.spec.values}' | jq .
-```
-
-### Common Issues
-
-1. **Image pull errors**: Ensure the `imagePullSecrets` reference existing secrets
-2. **Wrong image path**: Verify the full image path matches your registry structure
-3. **Tag mismatch**: If specifying custom tags, ensure compatibility with the chart version
-
-### Checking Pod Images
-
-After deployment, verify the images used:
+Verify secrets are copied to the correct namespaces:
 
 ```bash
-kubectl get pods -n flux-system -o jsonpath='{range .items[*]}{.metadata.name}{"\t"}{.spec.containers[*].image}{"\n"}{end}'
+# Platform cluster - tenant namespace
+kubectl get secrets -n mcp--<tenant-id> | grep -E "chart|image"
+
+# ManagedControlPlane - flux-system namespace
+kubectl get secrets -n flux-system | grep -E "image"
 ```
 
-## Reference
+### Check OCIRepository Secret Reference
 
-For the complete list of available Helm values, see:
-- [Flux2 Helm Chart README](https://github.com/fluxcd-community/helm-charts/tree/main/charts/flux2)
-- [Flux2 Helm Chart values.yaml](https://github.com/fluxcd-community/helm-charts/blob/main/charts/flux2/values.yaml)
+```bash
+kubectl get ocirepository flux -n mcp--<tenant-id> -o jsonpath='{.spec.secretRef}'
+```
+
+### Check HelmRelease Values
+
+```bash
+kubectl get helmrelease flux -n mcp--<tenant-id> -o jsonpath='{.spec.values}' | jq .
+```
+
+### Check Pod Image Pull Secrets
+
+On the ManagedControlPlane:
+
+```bash
+kubectl get pods -n flux-system -o jsonpath='{range .items[*]}{.metadata.name}{"\t"}{.spec.imagePullSecrets[*].name}{"\n"}{end}'
+```
