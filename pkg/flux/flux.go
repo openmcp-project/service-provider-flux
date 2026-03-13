@@ -64,7 +64,7 @@ func Configure(platformCluster, mcpCluster ManagedCluster, namespace string, obj
 	}
 
 	// Configure image pull secrets copy (MCP cluster: copy to flux-system namespace)
-	var imagePullSecretObjs []ManagedObject
+	imagePullSecretObjs := make([]ManagedObject, 0, len(pc.Spec.ImagePullSecrets))
 	for _, secretName := range pc.Spec.ImagePullSecrets {
 		secretObj := ConfigureSecretCopy(mcpCluster, SecretCopyConfig{
 			SourceClient: ctx.PlatformClient,
@@ -113,7 +113,8 @@ func Configure(platformCluster, mcpCluster ManagedCluster, namespace string, obj
 	platformCluster.AddObject(ociRepo)
 
 	// Configure HelmRelease - depends on OCIRepository and image pull secrets
-	helmReleaseDeps := []ManagedObject{ociRepo}
+	helmReleaseDeps := make([]ManagedObject, 0, 1+len(imagePullSecretObjs))
+	helmReleaseDeps = append(helmReleaseDeps, ociRepo)
 	helmReleaseDeps = append(helmReleaseDeps, imagePullSecretObjs...)
 
 	helmRelease := NewManagedObject(&helmv2.HelmRelease{
