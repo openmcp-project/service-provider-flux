@@ -30,15 +30,33 @@ type ProviderConfigSpec struct {
 	// +kubebuilder:validation:Required
 	ChartURL string `json:"chartUrl"`
 
+	// ChartPullSecret is the name of a Secret in the openmcp-system namespace
+	// containing credentials to pull the Helm chart from a private OCI registry.
+	// The secret will be copied to the tenant namespace on the platform cluster
+	// and referenced by the OCIRepository.
+	// The secret must be of type kubernetes.io/dockerconfigjson.
+	// +optional
+	ChartPullSecret string `json:"chartPullSecret,omitempty"`
+
+	// ImagePullSecrets is a list of Secret names in the openmcp-system namespace
+	// containing credentials to pull Flux controller images from private registries.
+	// These secrets will be copied to the flux-system namespace on the ManagedControlPlane
+	// and configured in the Helm values for the Flux deployment.
+	// The secrets must be of type kubernetes.io/dockerconfigjson.
+	// +optional
+	ImagePullSecrets []string `json:"imagePullSecrets,omitempty"`
+
 	// Values contains Helm values to override defaults for the Flux deployment.
 	// This field supports all configuration options from the Flux community Helm chart.
 	// See https://github.com/fluxcd-community/helm-charts/tree/main/charts/flux2 for available options.
+	//
+	// Note: If ImagePullSecrets is specified, imagePullSecrets values will be
+	// automatically merged with any imagePullSecrets specified here.
 	//
 	// Common use cases include:
 	// - Image localization for air-gapped environments
 	// - Resource limits and requests
 	// - Controller-specific configurations
-	// - Image pull secrets
 	//
 	// Example for air-gapped environments:
 	//   values:
@@ -46,8 +64,6 @@ type ProviderConfigSpec struct {
 	//       image: my-registry.example.com/fluxcd/helm-controller
 	//     sourceController:
 	//       image: my-registry.example.com/fluxcd/source-controller
-	//     imagePullSecrets:
-	//       - name: my-registry-secret
 	//
 	// +optional
 	Values *apiextensionsv1.JSON `json:"values,omitempty"`

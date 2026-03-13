@@ -92,15 +92,27 @@ func (r *FluxReconciler) Delete(ctx context.Context, obj *apiv1alpha1.Flux, pc *
 	}, nil
 }
 
-func (r *FluxReconciler) createObjectManager(obj *apiv1alpha1.Flux, pc *apiv1alpha1.ProviderConfig, clusters spruntime.ClusterContext) (flux.Manager, error) {
+func (r *FluxReconciler) createObjectManager(obj *apiv1alpha1.Flux, pc *apiv1alpha1.ProviderConfig, clusterCtx spruntime.ClusterContext) (flux.Manager, error) {
 	tenantNamespace, err := libutils.StableMCPNamespace(obj.Name, obj.Namespace)
 	if err != nil {
 		return nil, fmt.Errorf("failed to determine tenant namespace for Flux deployment: %w", err)
 	}
+
+	// Create managed clusters
 	platformCluster := flux.NewManagedCluster(r.PlatformCluster, r.PlatformCluster.RESTConfig(), tenantNamespace, flux.PlatformCluster)
-	flux.Configure(platformCluster, tenantNamespace, obj, pc, clusters)
+	mcpCluster := flux.NewManagedCluster(clusterCtx.MCPCluster, clusterCtx.MCPCluster.RESTConfig(), flux.FluxNamespace, flux.ManagedControlPlane)
+
+	// Configure Flux resources with secret copying support
+	flux.Configure(platformCluster, mcpCluster, tenantNamespace, obj, pc, clusterCtx, flux.ConfigureContext{
+		PlatformClient: r.PlatformCluster.Client(),
+		MCPClient:      clusterCtx.MCPCluster.Client(),
+	})
+
+	// Create manager and add clusters
 	mgr := flux.NewManager()
 	mgr.AddCluster(platformCluster)
+	mgr.AddCluster(mcpCluster)
+
 	return mgr, nil
 }
 
