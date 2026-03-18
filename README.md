@@ -93,7 +93,7 @@ metadata:
   name: my-flux
   namespace: default
 spec:
-  version: "2.4.0"
+  version: "2.16.2"
 ```
 
 | Field | Type | Description |
