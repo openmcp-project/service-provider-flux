@@ -24,8 +24,8 @@ Platform Cluster                         ManagedControlPlane
 │  openmcp-system namespace           │  │  flux-system namespace  │
 │  ┌─────────────────────────────┐    │  │  ┌───────────────────┐  │
 │  │ chart-pull-secret           │────┼──┼─▶│ (not copied here) │  │
-│  │ image-pull-secret-1         │────┼──┼──▶│ image-pull-secret │  │
-│  │ image-pull-secret-2         │────┼──┼──▶│ image-pull-secret │  │
+│  │ image-pull-secret-1         │────┼──┼─▶│ image-pull-secret │  │
+│  │ image-pull-secret-2         │────┼──┼─▶│ image-pull-secret │  │
 │  └─────────────────────────────┘    │  │  └───────────────────┘  │
 └─────────────────────────────────────┘  └─────────────────────────┘
             │
@@ -110,43 +110,8 @@ kubectl create secret docker-registry image-registry-credentials \
 2. The Helm values are automatically configured with `imagePullSecrets` referencing these secrets
 3. The Flux controller pods use these secrets when pulling images
 
-### Value Merging
-
-Image pull secrets from `spec.imagePullSecrets` are automatically merged with any `imagePullSecrets` specified in `spec.values`. This allows you to use both fields together:
-
-```yaml
-apiVersion: flux.services.openmcp.cloud/v1alpha1
-kind: ProviderConfig
-metadata:
-  name: example
-spec:
-  # These secrets will be copied to the MCP and referenced in Helm values
-  imagePullSecrets:
-    - "primary-registry-credentials"
-
-  # You can also specify additional imagePullSecrets directly in values
-  values:
-    imagePullSecrets:
-      - name: "secondary-registry-credentials"
-    helmController:
-      image: registry.internal.corp/fluxcd/helm-controller
-```
-
-The resulting Helm values will contain a merged, deduplicated list:
-
-```yaml
-imagePullSecrets:
-  - name: primary-registry-credentials    # from spec.imagePullSecrets
-  - name: secondary-registry-credentials  # from spec.values.imagePullSecrets
-helmController:
-  image: registry.internal.corp/fluxcd/helm-controller
-```
-
-**Merge behavior:**
-- Secrets from `spec.imagePullSecrets` are added first
-- Secrets from `spec.values.imagePullSecrets` are appended
-- Duplicates (by name) are automatically removed
-- Other values in `spec.values` are preserved as-is
+> **Note:** Only secrets listed in `spec.imagePullSecrets` are copied to the MCP. Do not specify
+> `imagePullSecrets` in `spec.values` directly, as those secrets will not exist on the target cluster.
 
 ## Complete Example
 
