@@ -38,135 +38,6 @@ import (
 	apiv1alpha1 "github.com/openmcp-project/service-provider-flux/api/v1alpha1"
 )
 
-func TestMergeImagePullSecrets(t *testing.T) {
-	tests := []struct {
-		name          string
-		specSecrets   []string
-		valuesSecrets any
-		expected      []map[string]string
-	}{
-		{
-			name:          "spec secrets only",
-			specSecrets:   []string{"secret-a", "secret-b"},
-			valuesSecrets: nil,
-			expected: []map[string]string{
-				{"name": "secret-a"},
-				{"name": "secret-b"},
-			},
-		},
-		{
-			name:        "values secrets only (spec empty)",
-			specSecrets: []string{},
-			valuesSecrets: []any{
-				map[string]any{"name": "secret-x"},
-			},
-			expected: nil, // function is only called when len(specSecrets) > 0
-		},
-		{
-			name:        "merge spec and values secrets",
-			specSecrets: []string{"secret-a"},
-			valuesSecrets: []any{
-				map[string]any{"name": "secret-b"},
-			},
-			expected: []map[string]string{
-				{"name": "secret-a"},
-				{"name": "secret-b"},
-			},
-		},
-		{
-			name:        "deduplicate secrets",
-			specSecrets: []string{"secret-a", "secret-b"},
-			valuesSecrets: []any{
-				map[string]any{"name": "secret-b"},
-				map[string]any{"name": "secret-c"},
-			},
-			expected: []map[string]string{
-				{"name": "secret-a"},
-				{"name": "secret-b"},
-				{"name": "secret-c"},
-			},
-		},
-		{
-			name:          "deduplicate within spec secrets",
-			specSecrets:   []string{"secret-a", "secret-a", "secret-b"},
-			valuesSecrets: nil,
-			expected: []map[string]string{
-				{"name": "secret-a"},
-				{"name": "secret-b"},
-			},
-		},
-		{
-			name:          "invalid values type (not a slice)",
-			specSecrets:   []string{"secret-a"},
-			valuesSecrets: "invalid",
-			expected: []map[string]string{
-				{"name": "secret-a"},
-			},
-		},
-		{
-			name:        "invalid item in values (not a map)",
-			specSecrets: []string{"secret-a"},
-			valuesSecrets: []any{
-				"invalid",
-				map[string]any{"name": "secret-b"},
-			},
-			expected: []map[string]string{
-				{"name": "secret-a"},
-				{"name": "secret-b"},
-			},
-		},
-		{
-			name:        "missing name field in values item",
-			specSecrets: []string{"secret-a"},
-			valuesSecrets: []any{
-				map[string]any{"other": "value"},
-				map[string]any{"name": "secret-b"},
-			},
-			expected: []map[string]string{
-				{"name": "secret-a"},
-				{"name": "secret-b"},
-			},
-		},
-		{
-			name:        "empty name in values item",
-			specSecrets: []string{"secret-a"},
-			valuesSecrets: []any{
-				map[string]any{"name": ""},
-				map[string]any{"name": "secret-b"},
-			},
-			expected: []map[string]string{
-				{"name": "secret-a"},
-				{"name": "secret-b"},
-			},
-		},
-		{
-			name:        "name is not a string in values item",
-			specSecrets: []string{"secret-a"},
-			valuesSecrets: []any{
-				map[string]any{"name": 123},
-				map[string]any{"name": "secret-b"},
-			},
-			expected: []map[string]string{
-				{"name": "secret-a"},
-				{"name": "secret-b"},
-			},
-		},
-	}
-
-	for _, tt := range tests {
-		t.Run(tt.name, func(t *testing.T) {
-			// Skip the "values secrets only" case since the function
-			// is only called when spec secrets exist
-			if len(tt.specSecrets) == 0 {
-				t.Skip("function only called when spec secrets exist")
-			}
-
-			result := mergeImagePullSecrets(tt.specSecrets, tt.valuesSecrets)
-			assert.Equal(t, tt.expected, result)
-		})
-	}
-}
-
 // TestBuildHelmValues tests the buildHelmValues function
 func TestBuildHelmValues(t *testing.T) {
 	tests := []struct {
@@ -218,7 +89,7 @@ func TestBuildHelmValues(t *testing.T) {
 			},
 		},
 		{
-			name: "merge image pull secrets with user values",
+			name: "spec.imagePullSecrets overrides values.imagePullSecrets",
 			pc: &apiv1alpha1.ProviderConfig{
 				Spec: apiv1alpha1.ProviderConfigSpec{
 					ImagePullSecrets: []string{"spec-secret"},
@@ -235,11 +106,10 @@ func TestBuildHelmValues(t *testing.T) {
 			checkValue: func(t *testing.T, values map[string]any) {
 				secrets, ok := values["imagePullSecrets"].([]any)
 				require.True(t, ok)
-				assert.Len(t, secrets, 2)
+				// Only spec-secret should be present (overrides, not merges)
+				assert.Len(t, secrets, 1)
 				s0 := secrets[0].(map[string]any)
-				s1 := secrets[1].(map[string]any)
 				assert.Equal(t, "spec-secret", s0["name"])
-				assert.Equal(t, "values-secret", s1["name"])
 				// User values should be preserved
 				hc, ok := values["helmController"].(map[string]any)
 				require.True(t, ok)

@@ -183,7 +183,9 @@ func Configure(platformCluster, mcpCluster ManagedCluster, namespace string, obj
 	platformCluster.AddObject(helmRelease)
 }
 
-// buildHelmValues merges user-provided values with image pull secrets configuration.
+// buildHelmValues builds Helm values from ProviderConfig.
+// Image pull secrets from spec.imagePullSecrets are added to the values and will
+// override any imagePullSecrets specified in spec.values.
 func buildHelmValues(pc *apiv1alpha1.ProviderConfig) (*apiextensionsv1.JSON, error) {
 	// Start with empty values
 	values := make(map[string]any)
@@ -195,9 +197,15 @@ func buildHelmValues(pc *apiv1alpha1.ProviderConfig) (*apiextensionsv1.JSON, err
 		}
 	}
 
-	// Merge image pull secrets from spec.imagePullSecrets with any existing values.imagePullSecrets
+	// Set image pull secrets from spec.imagePullSecrets (overrides any values.imagePullSecrets).
+	// Only secrets listed in spec.imagePullSecrets are copied to the MCP, so we don't merge
+	// with values.imagePullSecrets to avoid confusion - those secrets wouldn't exist on the MCP.
 	if len(pc.Spec.ImagePullSecrets) > 0 {
-		values["imagePullSecrets"] = mergeImagePullSecrets(pc.Spec.ImagePullSecrets, values["imagePullSecrets"])
+		secrets := make([]map[string]string, 0, len(pc.Spec.ImagePullSecrets))
+		for _, name := range pc.Spec.ImagePullSecrets {
+			secrets = append(secrets, map[string]string{"name": name})
+		}
+		values["imagePullSecrets"] = secrets
 	}
 
 	// Return nil if no values
@@ -211,49 +219,6 @@ func buildHelmValues(pc *apiv1alpha1.ProviderConfig) (*apiextensionsv1.JSON, err
 	}
 
 	return &apiextensionsv1.JSON{Raw: raw}, nil
-}
-
-// mergeImagePullSecrets merges image pull secrets from spec.imagePullSecrets with
-// any existing imagePullSecrets from values. Secrets from spec.imagePullSecrets are
-// added first, followed by any additional secrets from values (deduped by name).
-func mergeImagePullSecrets(specSecrets []string, valuesSecrets any) []map[string]string {
-	seen := make(map[string]struct{})
-	result := make([]map[string]string, 0, len(specSecrets))
-
-	// Add secrets from spec.imagePullSecrets first
-	for _, name := range specSecrets {
-		if _, exists := seen[name]; !exists {
-			seen[name] = struct{}{}
-			result = append(result, map[string]string{"name": name})
-		}
-	}
-
-	// Merge in secrets from values.imagePullSecrets if present
-	if valuesSecrets == nil {
-		return result
-	}
-
-	valuesSlice, ok := valuesSecrets.([]any)
-	if !ok {
-		return result
-	}
-
-	for _, item := range valuesSlice {
-		itemMap, ok := item.(map[string]any)
-		if !ok {
-			continue
-		}
-		name, ok := itemMap["name"].(string)
-		if !ok || name == "" {
-			continue
-		}
-		if _, exists := seen[name]; !exists {
-			seen[name] = struct{}{}
-			result = append(result, map[string]string{"name": name})
-		}
-	}
-
-	return result
 }
 
 // FluxStatus indicates whether the given Flux object is in phase terminating, pending or ready.
