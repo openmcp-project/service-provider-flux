@@ -50,7 +50,7 @@ Represents a single Kubernetes object under management. Each object declares:
 
 Represents a Kubernetes cluster that hosts managed objects. Provides:
 - Client access to the cluster
-- Cluster type identification (Platform or MCP)
+- Cluster type identification (Platform or ManagedControlPlane)
 - Collection of objects to manage in that cluster
 
 ## Deletion Handling
@@ -83,9 +83,9 @@ sequenceDiagram
 The key insight is that the Manager waits for actual resource deletion, not just the deletion request. This ensures:
 
 1. The HelmRelease's `spec.uninstall` configuration is honored
-2. The Flux Helm Controller has time to run `helm uninstall` on the MCP
+2. The Flux Helm Controller has time to run `helm uninstall` on the ManagedControlPlane
 3. Cluster access (kubeconfig) remains available until cleanup completes
-4. No orphaned Flux deployments remain on the MCP
+4. No orphaned Flux deployments remain on the ManagedControlPlane
 
 ## Usage
 

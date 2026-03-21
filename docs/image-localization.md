@@ -110,7 +110,7 @@ kubectl create secret docker-registry image-registry-credentials \
 2. The Helm values are automatically configured with `imagePullSecrets` referencing these secrets
 3. The Flux controller pods use these secrets when pulling images
 
-> **Note:** Only secrets listed in `spec.imagePullSecrets` are copied to the MCP. Do not specify
+> **Note:** Only secrets listed in `spec.imagePullSecrets` are copied to the ManagedControlPlane. Do not specify
 > `imagePullSecrets` in `spec.values` directly, as those secrets will not exist on the target cluster.
 
 ## Complete Example

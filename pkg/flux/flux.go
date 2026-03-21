@@ -33,7 +33,7 @@ import (
 )
 
 const (
-	// FluxNamespace is the namespace where Flux components are deployed on the MCP
+	// FluxNamespace is the namespace where Flux components are deployed on the ManagedControlPlane
 	FluxNamespace = "flux-system"
 	// OCIRepositoryName is the name of the Flux OCIRepository resource
 	OCIRepositoryName = "flux"
@@ -63,7 +63,7 @@ func Configure(platformCluster, mcpCluster ManagedCluster, namespace string, obj
 		})
 	}
 
-	// Configure image pull secrets copy (MCP cluster: copy to flux-system namespace)
+	// Configure image pull secrets copy (ManagedControlPlane cluster: copy to flux-system namespace)
 	imagePullSecretObjs := make([]ManagedObject, 0, len(pc.Spec.ImagePullSecrets))
 	for _, secretName := range pc.Spec.ImagePullSecrets {
 		secretObj := ConfigureSecretCopy(mcpCluster, SecretCopyConfig{
@@ -198,8 +198,8 @@ func buildHelmValues(pc *apiv1alpha1.ProviderConfig) (*apiextensionsv1.JSON, err
 	}
 
 	// Set image pull secrets from spec.imagePullSecrets (overrides any values.imagePullSecrets).
-	// Only secrets listed in spec.imagePullSecrets are copied to the MCP, so we don't merge
-	// with values.imagePullSecrets to avoid confusion - those secrets wouldn't exist on the MCP.
+	// Only secrets listed in spec.imagePullSecrets are copied to the ManagedControlPlane, so we don't merge
+	// with values.imagePullSecrets to avoid confusion - those secrets wouldn't exist on the ManagedControlPlane.
 	if len(pc.Spec.ImagePullSecrets) > 0 {
 		secrets := make([]map[string]string, 0, len(pc.Spec.ImagePullSecrets))
 		for _, name := range pc.Spec.ImagePullSecrets {

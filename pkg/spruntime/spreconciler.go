@@ -39,7 +39,7 @@ type ServiceProviderReconciler[T ServiceProviderAPI, PC ProviderConfig] interfac
 type ClusterContext struct {
 	// MCPCluster is the managed control plane that belongs to the current reconcile request
 	MCPCluster *clusters.Cluster
-	// MCPAccessSecretKey provides the object key to retrieve the MCP kubeconfig secret
+	// MCPAccessSecretKey provides the object key to retrieve the ManagedControlPlane kubeconfig secret
 	MCPAccessSecretKey client.ObjectKey
 	// WorkloadCluster is the workload cluster that belongs the current reconcile request
 	WorkloadCluster *clusters.Cluster
@@ -77,11 +77,11 @@ type ProviderConfig interface {
 
 // ClusterAccessProvider is a light weight version of the ClusterAccessReconciler
 type ClusterAccessProvider interface {
-	// MCPCluster creates a Cluster for the MCP AccessRequest.
-	// This function will only be successful if the MCP AccessRequest is granted and Reconcile returned without an error
+	// MCPCluster creates a Cluster for the ManagedControlPlane AccessRequest.
+	// This function will only be successful if the ManagedControlPlane AccessRequest is granted and Reconcile returned without an error
 	// and a reconcile.Result with no RequeueAfter value.
 	MCPCluster(ctx context.Context, request reconcile.Request) (*clusters.Cluster, error)
-	// MCPAccessRequest returns the AccessRequest for the MCP cluster.
+	// MCPAccessRequest returns the AccessRequest for the ManagedControlPlane cluster.
 	MCPAccessRequest(ctx context.Context, request reconcile.Request) (*clustersv1alpha1.AccessRequest, error)
 	// WorkloadCluster creates a Cluster for the Workload AccessRequest.
 	// This function will only be successful if the Workload AccessRequest is granted and Reconcile returned without an error
@@ -89,14 +89,14 @@ type ClusterAccessProvider interface {
 	WorkloadCluster(ctx context.Context, request reconcile.Request) (*clusters.Cluster, error)
 	// WorkloadAccessRequest returns the AccessRequest for the Workload cluster.
 	WorkloadAccessRequest(ctx context.Context, request reconcile.Request) (*clustersv1alpha1.AccessRequest, error)
-	// Reconcile creates the ClusterRequests and AccessRequests for the MCP and Workload clusters based on the reconciled object.
+	// Reconcile creates the ClusterRequests and AccessRequests for the ManagedControlPlane and Workload clusters based on the reconciled object.
 	// This function should be called during all reconciliations of the reconciled object.
 	// ctx is the context for the reconciliation.
 	// request is the object that is being reconciled
 	// It returns a reconcile.Result and an error if the reconciliation failed.
 	// The reconcile.Result may contain a RequeueAfter value to indicate that the reconciliation should be retried after a certain duration.
 	Reconcile(ctx context.Context, request reconcile.Request) (reconcile.Result, error)
-	// ReconcileDelete deletes the AccessRequests and ClusterRequests for the MCP and Workload clusters based on the reconciled object.
+	// ReconcileDelete deletes the AccessRequests and ClusterRequests for the ManagedControlPlane and Workload clusters based on the reconciled object.
 	// This function should be called during the deletion of the reconciled object.
 	// ctx is the context for the reconciliation.
 	// request is the object that is being reconciled.
@@ -112,7 +112,7 @@ type SPReconciler[T ServiceProviderAPI, PC ProviderConfig] struct {
 	platformCluster *clusters.Cluster
 	// onboardingCluster represents the onboarding cluster of the v2 architecture
 	onboardingCluster *clusters.Cluster
-	// clusterAccessReconciler reconciles access to MCP and workload clusters
+	// clusterAccessReconciler reconciles access to ManagedControlPlane and workload clusters
 	clusterAccessReconciler ClusterAccessProvider
 	// serviceProviderReonciler reconciles the end-user facing onboarding API of a service provider
 	serviceProviderReconciler ServiceProviderReconciler[T, PC]
