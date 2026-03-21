@@ -7,6 +7,9 @@ vars:
   CODE_DIRS: '{{.ROOT_DIR}}/cmd/... {{.ROOT_DIR}}/internal/... {{.ROOT_DIR}}/api/v1alpha1/... {{.ROOT_DIR}}/pkg/...'
   COMPONENTS: 'service-provider-flux'
   REPO_URL: 'https://github.com/openmcp-project/service-provider-flux'
+  CHART_COMPONENTS: "[]"
+  CRDS_COMPONENTS: 'service-provider-flux'
+  CRDS_PATH: '{{.ROOT_DIR}}/api/crds/manifests'
 
 includes:
   shared:
