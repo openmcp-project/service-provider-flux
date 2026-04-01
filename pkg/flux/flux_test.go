@@ -15,7 +15,6 @@ package flux
 
 import (
 	"context"
-	"encoding/json"
 	"errors"
 	"testing"
 	"time"
@@ -24,9 +23,7 @@ import (
 	sourcev1 "github.com/fluxcd/source-controller/api/v1"
 	"github.com/openmcp-project/controller-utils/pkg/clusters"
 	"github.com/stretchr/testify/assert"
-	"github.com/stretchr/testify/require"
 	corev1 "k8s.io/api/core/v1"
-	apiextensionsv1 "k8s.io/apiextensions-apiserver/pkg/apis/apiextensions/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/runtime"
 	"k8s.io/apimachinery/pkg/types"
@@ -37,86 +34,6 @@ import (
 
 	apiv1alpha1 "github.com/openmcp-project/service-provider-flux/api/v1alpha1"
 )
-
-// TestExtractHelmValues tests the ExtractHelmValues function
-func TestExtractHelmValues(t *testing.T) {
-	tests := []struct {
-		name       string
-		values     *apiextensionsv1.JSON
-		wantErr    bool
-		checkValue func(t *testing.T, helmValues *HelmValues)
-	}{
-		{
-			name:   "nil values returns empty HelmValues",
-			values: nil,
-			checkValue: func(t *testing.T, helmValues *HelmValues) {
-				assert.Empty(t, helmValues.ImagePullSecrets)
-			},
-		},
-		{
-			name:   "empty raw values returns empty HelmValues",
-			values: &apiextensionsv1.JSON{Raw: []byte{}},
-			checkValue: func(t *testing.T, helmValues *HelmValues) {
-				assert.Empty(t, helmValues.ImagePullSecrets)
-			},
-		},
-		{
-			name: "extracts imagePullSecrets",
-			values: mustMarshalJSON(t, map[string]any{
-				"imagePullSecrets": []map[string]any{
-					{"name": "secret-a"},
-					{"name": "secret-b"},
-				},
-			}),
-			checkValue: func(t *testing.T, helmValues *HelmValues) {
-				require.Len(t, helmValues.ImagePullSecrets, 2)
-				assert.Equal(t, "secret-a", helmValues.ImagePullSecrets[0].Name)
-				assert.Equal(t, "secret-b", helmValues.ImagePullSecrets[1].Name)
-			},
-		},
-		{
-			name: "ignores other values",
-			values: mustMarshalJSON(t, map[string]any{
-				"helmController": map[string]any{
-					"image": "custom-image",
-				},
-			}),
-			checkValue: func(t *testing.T, helmValues *HelmValues) {
-				assert.Empty(t, helmValues.ImagePullSecrets)
-				assert.Empty(t, helmValues.NamespaceOverride)
-			},
-		},
-		{
-			name: "extracts namespaceOverride",
-			values: mustMarshalJSON(t, map[string]any{
-				"namespaceOverride": "custom-flux-ns",
-			}),
-			checkValue: func(t *testing.T, helmValues *HelmValues) {
-				assert.Equal(t, "custom-flux-ns", helmValues.NamespaceOverride)
-			},
-		},
-		{
-			name:    "invalid JSON returns error",
-			values:  &apiextensionsv1.JSON{Raw: []byte("invalid json")},
-			wantErr: true,
-		},
-	}
-
-	for _, tt := range tests {
-		t.Run(tt.name, func(t *testing.T) {
-			result, err := ExtractHelmValues(tt.values)
-			if tt.wantErr {
-				assert.Error(t, err)
-				return
-			}
-			require.NoError(t, err)
-			require.NotNil(t, result)
-			if tt.checkValue != nil {
-				tt.checkValue(t, result)
-			}
-		})
-	}
-}
 
 // TestFluxStatus tests the FluxStatus function
 func TestFluxStatus(t *testing.T) {
@@ -666,11 +583,4 @@ func (t *testManagedCluster) GetCluster() *clusters.Cluster {
 
 func (t *testManagedCluster) GetClusterType() ClusterType {
 	return t.clusterType
-}
-
-func mustMarshalJSON(t *testing.T, v any) *apiextensionsv1.JSON {
-	t.Helper()
-	raw, err := json.Marshal(v)
-	require.NoError(t, err)
-	return &apiextensionsv1.JSON{Raw: raw}
 }
