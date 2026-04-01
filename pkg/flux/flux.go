@@ -127,7 +127,7 @@ func ManageFluxResources(cluster ManagedCluster, fluxNamespace string, obj *apiv
 }
 
 // FluxStatus indicates whether the given Flux object is in phase terminating, pending or ready.
-func FluxStatus(o client.Object, rl apiv1alpha1.ResourceLocation) Status {
+func FluxStatus(o client.Object, rl apiv1alpha1.ResourceLocation) Status { //nolint:revive // name matches ESO pattern
 	fluxObject, ok := o.(conditions.Getter)
 	if !ok {
 		return Status{
