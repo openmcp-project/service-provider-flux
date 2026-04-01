@@ -23,6 +23,8 @@ import (
 // HelmValues defines the Helm values that are explicitly processed during reconciliation.
 // The Flux Helm chart uses imagePullSecrets at the top level, not under global.
 type HelmValues struct {
+	// NamespaceOverride overrides the default flux-system namespace for the Flux deployment.
+	NamespaceOverride string `json:"namespaceOverride,omitempty"`
 	// ImagePullSecrets is a list of references to secrets used for pulling Flux controller images.
 	// These secrets will be copied from the service provider's namespace to the flux-system namespace
 	// on the ManagedControlPlane.

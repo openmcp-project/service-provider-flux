@@ -17,57 +17,55 @@ import (
 	"context"
 	"fmt"
 
+	openmcpresources "github.com/openmcp-project/controller-utils/pkg/resources"
 	corev1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
-	"k8s.io/apimachinery/pkg/types"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 
 	apiv1alpha1 "github.com/openmcp-project/service-provider-flux/api/v1alpha1"
 )
 
-// SecretCopyConfig holds the configuration for copying a secret.
+// SecretCopyConfig holds the configuration for copying secrets.
 type SecretCopyConfig struct {
 	// SourceClient is the client to read the source secret from.
 	SourceClient client.Client
-	// SourceKey is the namespace/name of the source secret.
-	SourceKey types.NamespacedName
-	// TargetKey is the namespace/name of the target secret.
-	TargetKey types.NamespacedName
+	// SourceNamespace is the namespace of the source secret.
+	SourceNamespace string
+	// TargetNamespace is the namespace of the target secret.
+	TargetNamespace string
 }
 
-// ConfigureSecretCopy creates a ManagedObject that copies a secret from source to target.
-func ConfigureSecretCopy(cluster ManagedCluster, cfg SecretCopyConfig) ManagedObject {
-	secret := NewManagedObject(&corev1.Secret{
-		ObjectMeta: metav1.ObjectMeta{
-			Name:      cfg.TargetKey.Name,
-			Namespace: cfg.TargetKey.Namespace,
-		},
-	}, ManagedObjectContext{
-		ReconcileFunc: func(ctx context.Context, o client.Object) error {
-			targetSecret, ok := o.(*corev1.Secret)
-			if !ok {
-				return fmt.Errorf("expected *corev1.Secret, got %T", o)
-			}
-
-			// Get source secret
-			sourceSecret := &corev1.Secret{}
-			if err := cfg.SourceClient.Get(ctx, cfg.SourceKey, sourceSecret); err != nil {
-				return fmt.Errorf("failed to get source secret %s: %w", cfg.SourceKey, err)
-			}
-
-			// Copy data
-			targetSecret.Type = sourceSecret.Type
-			targetSecret.Data = sourceSecret.Data
-
-			return nil
-		},
-		DependsOn:      []ManagedObject{},
-		DeletionPolicy: Delete,
-		StatusFunc:     SecretStatus,
-	})
-
-	cluster.AddObject(secret)
-	return secret
+// ManagePullSecrets syncs every image pull secret to the target cluster.
+func ManagePullSecrets(targetCluster ManagedCluster, imagePullSecrets []corev1.LocalObjectReference, config SecretCopyConfig) {
+	for _, pullSecret := range imagePullSecrets {
+		secret := NewManagedObject(&corev1.Secret{
+			ObjectMeta: metav1.ObjectMeta{
+				Name:      pullSecret.Name,
+				Namespace: config.TargetNamespace,
+			},
+		}, ManagedObjectContext{
+			ReconcileFunc: func(ctx context.Context, o client.Object) error {
+				oSecret, ok := o.(*corev1.Secret)
+				if !ok {
+					return fmt.Errorf("expected *corev1.Secret, got %T", o)
+				}
+				sourceSecret := &corev1.Secret{
+					ObjectMeta: metav1.ObjectMeta{
+						Name:      pullSecret.Name,
+						Namespace: config.SourceNamespace,
+					},
+				}
+				// retrieve source secret from platform cluster
+				if err := config.SourceClient.Get(ctx, client.ObjectKeyFromObject(sourceSecret), sourceSecret); err != nil {
+					return err
+				}
+				mutator := openmcpresources.NewSecretMutator(pullSecret.Name, config.TargetNamespace, sourceSecret.Data, corev1.SecretTypeDockerConfigJson)
+				return mutator.Mutate(oSecret)
+			},
+			StatusFunc: SimpleStatus,
+		})
+		targetCluster.AddObject(secret)
+	}
 }
 
 // SecretStatus returns the status of a secret object.

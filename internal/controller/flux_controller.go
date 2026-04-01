@@ -92,29 +92,53 @@ func (r *FluxReconciler) Delete(ctx context.Context, obj *apiv1alpha1.Flux, pc *
 	}, nil
 }
 
-func (r *FluxReconciler) createObjectManager(obj *apiv1alpha1.Flux, pc *apiv1alpha1.ProviderConfig, clusterCtx spruntime.ClusterContext) (flux.Manager, error) {
+func (r *FluxReconciler) createObjectManager(obj *apiv1alpha1.Flux, pc *apiv1alpha1.ProviderConfig, clusters spruntime.ClusterContext) (flux.Manager, error) {
 	tenantNamespace, err := libutils.StableMCPNamespace(obj.Name, obj.Namespace)
 	if err != nil {
 		return nil, fmt.Errorf("failed to determine tenant namespace for Flux deployment: %w", err)
 	}
 
+	// Extract helm values to determine namespace and image pull secrets
+	helmValues, err := flux.ExtractHelmValues(pc.Spec.Values)
+	if err != nil {
+		return nil, fmt.Errorf("failed to extract helm values: %w", err)
+	}
+
 	// Create managed clusters
 	platformCluster := flux.NewManagedCluster(r.PlatformCluster, r.PlatformCluster.RESTConfig(), tenantNamespace, flux.PlatformCluster)
-	mcpCluster := flux.NewManagedCluster(clusterCtx.MCPCluster, clusterCtx.MCPCluster.RESTConfig(), flux.FluxNamespace, flux.ManagedControlPlane)
 
-	// Configure Flux resources with secret copying support
-	if err := flux.Configure(platformCluster, mcpCluster, tenantNamespace, obj, pc, clusterCtx, flux.ConfigureContext{
-		PlatformClient:  r.PlatformCluster.Client(),
-		MCPClient:       clusterCtx.MCPCluster.Client(),
-		SourceNamespace: r.PodNamespace,
-	}); err != nil {
-		return nil, fmt.Errorf("failed to configure Flux resources: %w", err)
+	// Support namespace override from Helm values
+	fluxNamespace := flux.DefaultFluxNamespace
+	if helmValues.NamespaceOverride != "" {
+		fluxNamespace = helmValues.NamespaceOverride
 	}
+	mcpCluster := flux.NewManagedCluster(clusters.MCPCluster, clusters.MCPCluster.RESTConfig(), fluxNamespace, flux.ManagedControlPlane)
+
+	// Sync image pull secrets from platform cluster to MCP
+	flux.ManagePullSecrets(mcpCluster, helmValues.ImagePullSecrets, flux.SecretCopyConfig{
+		SourceClient:    r.PlatformCluster.Client(),
+		SourceNamespace: r.PodNamespace,
+		TargetNamespace: fluxNamespace,
+	})
+
+	// Sync chart pull secret within platform cluster from pod namespace to tenant namespace
+	if pc.Spec.ChartPullSecret != "" {
+		flux.ManagePullSecrets(platformCluster, []corev1.LocalObjectReference{
+			{Name: pc.Spec.ChartPullSecret},
+		}, flux.SecretCopyConfig{
+			SourceClient:    r.PlatformCluster.Client(),
+			SourceNamespace: r.PodNamespace,
+			TargetNamespace: tenantNamespace,
+		})
+	}
+
+	// Configure Flux resources (OCIRepository and HelmRelease)
+	flux.ManageFluxResources(platformCluster, fluxNamespace, obj, pc, clusters)
 
 	// Create manager and add clusters
 	mgr := flux.NewManager()
-	mgr.AddCluster(platformCluster)
 	mgr.AddCluster(mcpCluster)
+	mgr.AddCluster(platformCluster)
 
 	return mgr, nil
 }

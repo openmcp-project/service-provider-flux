@@ -83,6 +83,16 @@ func TestExtractHelmValues(t *testing.T) {
 			}),
 			checkValue: func(t *testing.T, helmValues *HelmValues) {
 				assert.Empty(t, helmValues.ImagePullSecrets)
+				assert.Empty(t, helmValues.NamespaceOverride)
+			},
+		},
+		{
+			name: "extracts namespaceOverride",
+			values: mustMarshalJSON(t, map[string]any{
+				"namespaceOverride": "custom-flux-ns",
+			}),
+			checkValue: func(t *testing.T, helmValues *HelmValues) {
+				assert.Equal(t, "custom-flux-ns", helmValues.NamespaceOverride)
 			},
 		},
 		{
