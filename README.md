@@ -15,24 +15,37 @@ The Flux service provider automates the lifecycle management of Flux installatio
 
 ## 🏗️ Architecture
 
-```
-Platform Cluster                         ManagedControlPlane
-┌─────────────────────────────────────┐  ┌─────────────────────────┐
-│  service provider namespace         │  │  flux-system namespace  │
-│  ┌─────────────────────────────┐    │  │  ┌───────────────────┐  │
-│  │ ProviderConfig              │    │  │  │ Flux Controllers  │  │
-│  │ chart-pull-secret           │────┼──┼─▶│ image-pull-secret │  │
-│  └─────────────────────────────┘    │  │  └───────────────────┘  │
-└─────────────────────────────────────┘  └─────────────────────────┘
-            │
-            ▼
-┌─────────────────────────────────────┐
-│  tenant namespace (mcp--xxx)        │
-│  ┌─────────────────────────────┐    │
-│  │ OCIRepository               │    │
-│  │ HelmRelease                 │    │
-│  └─────────────────────────────┘    │
-└─────────────────────────────────────┘
+```mermaid
+flowchart LR
+
+  subgraph PC[Platform Cluster]
+    spflux[Service Provider Flux]
+    subgraph TN[Tenant Namespace]
+      ocirepo([OCIRepository])
+      helmrel([HelmRelease])
+    end
+  end
+
+  subgraph OC[Onboarding Cluster]
+    fluxapi([Flux])
+    mcpapi([ManagedControlPlane])
+
+    fluxapi -- references --> mcpapi
+  end
+
+  subgraph mcp[ManagedControlPlane]
+    subgraph FS[flux-system namespace]
+      fluxctrl[Flux Controllers]
+      pullsecret([image-pull-secret])
+    end
+  end
+
+  spflux -- reconciles --> fluxapi
+  spflux -- creates --> ocirepo
+  spflux -- creates --> helmrel
+  helmrel -- installs --> fluxctrl
+  spflux -- copies secrets --> pullsecret
+  mcpapi -- represents --> mcp
 ```
 
 ## 🚦 Getting Started

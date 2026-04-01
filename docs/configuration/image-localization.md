@@ -18,26 +18,38 @@ The Flux service provider handles this through:
 
 ## Secret Flow
 
-```
-Platform Cluster                         ManagedControlPlane
-┌─────────────────────────────────────┐  ┌─────────────────────────┐
-│  service provider namespace         │  │  flux-system namespace  │
-│  ┌─────────────────────────────┐    │  │  ┌───────────────────┐  │
-│  │ chart-pull-secret           │────┼──┼─▶│ (not copied here) │  │
-│  │ image-pull-secret-1         │────┼──┼─▶│ image-pull-secret │  │
-│  │ image-pull-secret-2         │────┼──┼─▶│ image-pull-secret │  │
-│  └─────────────────────────────┘    │  │  └───────────────────┘  │
-└─────────────────────────────────────┘  └─────────────────────────┘
-            │
-            ▼
-┌─────────────────────────────────────┐
-│  tenant namespace (mcp--xxx)        │
-│  ┌─────────────────────────────┐    │
-│  │ chart-pull-secret (copy)    │◀───┘
-│  │ OCIRepository (refs secret) │
-│  │ HelmRelease                 │
-│  └─────────────────────────────┘
-└─────────────────────────────────────┘
+```mermaid
+flowchart TB
+
+  subgraph PC[Platform Cluster]
+    subgraph SPN[Service Provider Namespace]
+      chartsecret([chart-pull-secret])
+      imgsecret1([image-pull-secret-1])
+      imgsecret2([image-pull-secret-2])
+    end
+
+    subgraph TN[Tenant Namespace]
+      chartsecretcopy([chart-pull-secret copy])
+      ocirepo([OCIRepository])
+      helmrel([HelmRelease])
+      ocirepo -. refs .-> chartsecretcopy
+    end
+  end
+
+  subgraph MCP[ManagedControlPlane]
+    subgraph FS[flux-system namespace]
+      imgcopy1([image-pull-secret-1])
+      imgcopy2([image-pull-secret-2])
+      fluxctrl[Flux Controllers]
+      fluxctrl -. uses .-> imgcopy1
+      fluxctrl -. uses .-> imgcopy2
+    end
+  end
+
+  chartsecret -- copied to --> chartsecretcopy
+  imgsecret1 -- copied to --> imgcopy1
+  imgsecret2 -- copied to --> imgcopy2
+  helmrel -- installs --> fluxctrl
 ```
 
 ## Configuration
