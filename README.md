@@ -141,7 +141,7 @@ spec:
 
 ## 🔐 Air-Gapped Environments
 
-For air-gapped or enterprise environments, see the [Image Localization Guide](docs/image-localization.md).
+For air-gapped or enterprise environments, see the [Image Localization Guide](docs/configuration/image-localization.md).
 
 Quick example:
 
