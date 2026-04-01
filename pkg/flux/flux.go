@@ -53,7 +53,7 @@ func ManageFluxResources(cluster ManagedCluster, fluxNamespace string, obj *apiv
 			}
 			ociRepo.Spec = sourcev1.OCIRepositorySpec{
 				Interval: metav1.Duration{Duration: pc.PollInterval()},
-				URL:      pc.Spec.ChartURL,
+				URL:      *pc.Spec.ChartURL,
 				Reference: &sourcev1.OCIRepositoryRef{
 					Tag: obj.Spec.Version,
 				},

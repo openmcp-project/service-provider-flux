@@ -377,12 +377,13 @@ func createFluxObj(version string) *apiv1alpha1.Flux {
 }
 
 func createProviderConfig() *apiv1alpha1.ProviderConfig {
+	chartURL := "oci://ghcr.io/fluxcd-community/charts/flux2"
 	return &apiv1alpha1.ProviderConfig{
 		ObjectMeta: metav1.ObjectMeta{
 			Name: "test-provider-config",
 		},
 		Spec: apiv1alpha1.ProviderConfigSpec{
-			ChartURL: "oci://ghcr.io/fluxcd-community/charts/flux2",
+			ChartURL: &chartURL,
 			PollInterval: &metav1.Duration{
 				Duration: time.Minute,
 			},

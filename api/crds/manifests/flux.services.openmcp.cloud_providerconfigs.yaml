@@ -50,9 +50,8 @@ spec:
                   The secret must be of type kubernetes.io/dockerconfigjson.
                 type: string
               chartUrl:
-                description: |-
-                  ChartURL is the OCI registry URL for the Flux Helm chart.
-                  Example: oci://ghcr.io/fluxcd-community/charts/flux2
+                default: oci://ghcr.io/fluxcd-community/charts/flux2
+                description: ChartURL is the OCI registry URL for the Flux Helm chart.
                 type: string
               pollInterval:
                 default: 1m
@@ -84,8 +83,6 @@ spec:
                       sourceController:
                         image: my-registry.example.com/fluxcd/source-controller
                 x-kubernetes-preserve-unknown-fields: true
-            required:
-            - chartUrl
             type: object
           status:
             description: status defines the observed state of ProviderConfig

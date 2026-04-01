@@ -26,9 +26,9 @@ import (
 // ProviderConfigSpec defines the desired state of ProviderConfig
 type ProviderConfigSpec struct {
 	// ChartURL is the OCI registry URL for the Flux Helm chart.
-	// Example: oci://ghcr.io/fluxcd-community/charts/flux2
-	// +kubebuilder:validation:Required
-	ChartURL string `json:"chartUrl"`
+	// +optional
+	// +kubebuilder:default="oci://ghcr.io/fluxcd-community/charts/flux2"
+	ChartURL *string `json:"chartUrl,omitempty"`
 
 	// ChartPullSecret is the name of a Secret in the service provider's namespace
 	// containing credentials to pull the Helm chart from a private OCI registry.
