@@ -23,6 +23,7 @@ import (
 	"github.com/fluxcd/pkg/runtime/conditions"
 	sourcev1 "github.com/fluxcd/source-controller/api/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+	"k8s.io/utils/ptr"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 
 	apiv1alpha1 "github.com/openmcp-project/service-provider-flux/api/v1alpha1"
@@ -106,7 +107,7 @@ func ManageFluxResources(cluster ManagedCluster, fluxNamespace string, obj *apiv
 					CRDs: helmv2.CreateReplace,
 					Remediation: &helmv2.UpgradeRemediation{
 						Retries:  3,
-						Strategy: func() *helmv2.RemediationStrategy { s := helmv2.RollbackRemediationStrategy; return &s }(),
+						Strategy: ptr.To(helmv2.RollbackRemediationStrategy),
 					},
 				},
 				Uninstall: &helmv2.Uninstall{
