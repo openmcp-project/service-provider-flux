@@ -30,7 +30,7 @@ type ProviderConfigSpec struct {
 	// +kubebuilder:validation:Required
 	ChartURL string `json:"chartUrl"`
 
-	// ChartPullSecret is the name of a Secret in the openmcp-system namespace
+	// ChartPullSecret is the name of a Secret in the service provider's namespace
 	// containing credentials to pull the Helm chart from a private OCI registry.
 	// The secret will be copied to the tenant namespace on the platform cluster
 	// and referenced by the OCIRepository.
@@ -38,7 +38,7 @@ type ProviderConfigSpec struct {
 	// +optional
 	ChartPullSecret string `json:"chartPullSecret,omitempty"`
 
-	// ImagePullSecrets is a list of Secret names in the openmcp-system namespace
+	// ImagePullSecrets is a list of Secret names in the service provider's namespace
 	// containing credentials to pull Flux controller images from private registries.
 	// These secrets will be copied to the flux-system namespace on the ManagedControlPlane
 	// and configured in the Helm values for the Flux deployment.

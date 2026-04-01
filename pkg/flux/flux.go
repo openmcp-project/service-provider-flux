@@ -39,14 +39,15 @@ const (
 	OCIRepositoryName = "flux"
 	// HelmReleaseName is the name of the Flux HelmRelease resource
 	HelmReleaseName = "flux"
-	// SourceNamespace is the namespace where source secrets are located
-	SourceNamespace = "openmcp-system"
 )
 
 // ConfigureContext holds the context for configuring Flux resources.
 type ConfigureContext struct {
 	PlatformClient client.Client
 	MCPClient      client.Client
+	// SourceNamespace is the namespace where source secrets are located on the platform cluster.
+	// This is typically the pod namespace where the service provider is deployed.
+	SourceNamespace string
 }
 
 // Configure sets up Flux OCIRepository and HelmRelease resources on the platform cluster,
@@ -54,11 +55,11 @@ type ConfigureContext struct {
 func Configure(platformCluster, mcpCluster ManagedCluster, namespace string, obj *apiv1alpha1.Flux, pc *apiv1alpha1.ProviderConfig, cc spruntime.ClusterContext, ctx ConfigureContext) {
 	var chartPullSecretObj ManagedObject
 
-	// Configure chart pull secret copy (platform cluster: openmcp-system -> tenant namespace)
+	// Configure chart pull secret copy (platform cluster: source namespace -> tenant namespace)
 	if pc.Spec.ChartPullSecret != "" {
 		chartPullSecretObj = ConfigureSecretCopy(platformCluster, SecretCopyConfig{
 			SourceClient: ctx.PlatformClient,
-			SourceKey:    types.NamespacedName{Namespace: SourceNamespace, Name: pc.Spec.ChartPullSecret},
+			SourceKey:    types.NamespacedName{Namespace: ctx.SourceNamespace, Name: pc.Spec.ChartPullSecret},
 			TargetKey:    types.NamespacedName{Namespace: namespace, Name: pc.Spec.ChartPullSecret},
 		})
 	}
@@ -68,7 +69,7 @@ func Configure(platformCluster, mcpCluster ManagedCluster, namespace string, obj
 	for _, secretName := range pc.Spec.ImagePullSecrets {
 		secretObj := ConfigureSecretCopy(mcpCluster, SecretCopyConfig{
 			SourceClient: ctx.PlatformClient,
-			SourceKey:    types.NamespacedName{Namespace: SourceNamespace, Name: secretName},
+			SourceKey:    types.NamespacedName{Namespace: ctx.SourceNamespace, Name: secretName},
 			TargetKey:    types.NamespacedName{Namespace: FluxNamespace, Name: secretName},
 		})
 		imagePullSecretObjs = append(imagePullSecretObjs, secretObj)

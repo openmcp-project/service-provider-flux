@@ -21,7 +21,7 @@ The Flux service provider handles this through:
 ```
 Platform Cluster                         ManagedControlPlane
 ┌─────────────────────────────────────┐  ┌─────────────────────────┐
-│  openmcp-system namespace           │  │  flux-system namespace  │
+│  service provider namespace         │  │  flux-system namespace  │
 │  ┌─────────────────────────────┐    │  │  ┌───────────────────┐  │
 │  │ chart-pull-secret           │────┼──┼─▶│ (not copied here) │  │
 │  │ image-pull-secret-1         │────┼──┼─▶│ image-pull-secret │  │
@@ -54,12 +54,12 @@ spec:
   chartUrl: "oci://registry.internal.corp/charts/flux2"
 
   # Secret for authenticating to the chart OCI registry
-  # Must exist in openmcp-system namespace
+  # Must exist in the service provider's namespace on the platform cluster
   # Will be copied to the tenant namespace on the platform cluster
   chartPullSecret: "chart-registry-credentials"
 
   # Secrets for authenticating to the image registry
-  # Must exist in openmcp-system namespace
+  # Must exist in the service provider's namespace on the platform cluster
   # Will be copied to flux-system namespace on the ManagedControlPlane
   imagePullSecrets:
     - "image-registry-credentials"
@@ -78,19 +78,19 @@ spec:
 
 ### Creating Secrets
 
-Secrets must be created in the `openmcp-system` namespace on the platform cluster:
+Secrets must be created in the service provider's namespace on the platform cluster (the namespace where the service provider pod runs):
 
 ```bash
 # Chart pull secret (for OCI registry authentication)
 kubectl create secret docker-registry chart-registry-credentials \
-  --namespace openmcp-system \
+  --namespace <service-provider-namespace> \
   --docker-server=registry.internal.corp \
   --docker-username=<username> \
   --docker-password=<password>
 
 # Image pull secret (for container image authentication)
 kubectl create secret docker-registry image-registry-credentials \
-  --namespace openmcp-system \
+  --namespace <service-provider-namespace> \
   --docker-server=registry.internal.corp \
   --docker-username=<username> \
   --docker-password=<password>
@@ -100,13 +100,13 @@ kubectl create secret docker-registry image-registry-credentials \
 
 ### Chart Pull Secret
 
-1. The secret specified in `chartPullSecret` is copied from `openmcp-system` to the tenant namespace on the platform cluster
+1. The secret specified in `chartPullSecret` is copied from the service provider's namespace to the tenant namespace on the platform cluster
 2. The `OCIRepository` resource references this secret via `spec.secretRef`
 3. The Flux Source Controller uses this secret to authenticate when pulling the Helm chart
 
 ### Image Pull Secrets
 
-1. Secrets specified in `imagePullSecrets` are copied from `openmcp-system` on the platform cluster to `flux-system` on the ManagedControlPlane
+1. Secrets specified in `imagePullSecrets` are copied from the service provider's namespace on the platform cluster to `flux-system` on the ManagedControlPlane
 2. The Helm values are automatically configured with `imagePullSecrets` referencing these secrets
 3. The Flux controller pods use these secrets when pulling images
 

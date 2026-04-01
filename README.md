@@ -18,7 +18,7 @@ The Flux service provider automates the lifecycle management of Flux installatio
 ```
 Platform Cluster                         ManagedControlPlane
 ┌─────────────────────────────────────┐  ┌─────────────────────────┐
-│  openmcp-system namespace           │  │  flux-system namespace  │
+│  service provider namespace         │  │  flux-system namespace  │
 │  ┌─────────────────────────────┐    │  │  ┌───────────────────┐  │
 │  │ ProviderConfig              │    │  │  │ Flux Controllers  │  │
 │  │ chart-pull-secret           │────┼──┼─▶│ image-pull-secret │  │

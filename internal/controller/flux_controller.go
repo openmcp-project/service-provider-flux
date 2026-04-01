@@ -104,8 +104,9 @@ func (r *FluxReconciler) createObjectManager(obj *apiv1alpha1.Flux, pc *apiv1alp
 
 	// Configure Flux resources with secret copying support
 	flux.Configure(platformCluster, mcpCluster, tenantNamespace, obj, pc, clusterCtx, flux.ConfigureContext{
-		PlatformClient: r.PlatformCluster.Client(),
-		MCPClient:      clusterCtx.MCPCluster.Client(),
+		PlatformClient:  r.PlatformCluster.Client(),
+		MCPClient:       clusterCtx.MCPCluster.Client(),
+		SourceNamespace: r.PodNamespace,
 	})
 
 	// Create manager and add clusters
