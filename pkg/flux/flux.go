@@ -15,7 +15,6 @@ package flux
 
 import (
 	"context"
-	"encoding/json"
 	"fmt"
 	"time"
 
@@ -23,7 +22,6 @@ import (
 	"github.com/fluxcd/pkg/apis/meta"
 	"github.com/fluxcd/pkg/runtime/conditions"
 	sourcev1 "github.com/fluxcd/source-controller/api/v1"
-	apiextensionsv1 "k8s.io/apiextensions-apiserver/pkg/apis/apiextensions/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/types"
 	"sigs.k8s.io/controller-runtime/pkg/client"
@@ -52,8 +50,14 @@ type ConfigureContext struct {
 
 // Configure sets up Flux OCIRepository and HelmRelease resources on the platform cluster,
 // and handles secret copying for air-gapped environments.
-func Configure(platformCluster, mcpCluster ManagedCluster, namespace string, obj *apiv1alpha1.Flux, pc *apiv1alpha1.ProviderConfig, cc spruntime.ClusterContext, ctx ConfigureContext) {
+func Configure(platformCluster, mcpCluster ManagedCluster, namespace string, obj *apiv1alpha1.Flux, pc *apiv1alpha1.ProviderConfig, cc spruntime.ClusterContext, ctx ConfigureContext) error {
 	var chartPullSecretObj ManagedObject
+
+	// Extract image pull secrets from Helm values
+	helmValues, err := ExtractHelmValues(pc.Spec.Values)
+	if err != nil {
+		return fmt.Errorf("failed to extract helm values: %w", err)
+	}
 
 	// Configure chart pull secret copy (platform cluster: source namespace -> tenant namespace)
 	if pc.Spec.ChartPullSecret != "" {
@@ -64,13 +68,13 @@ func Configure(platformCluster, mcpCluster ManagedCluster, namespace string, obj
 		})
 	}
 
-	// Configure image pull secrets copy (ManagedControlPlane cluster: copy to flux-system namespace)
-	imagePullSecretObjs := make([]ManagedObject, 0, len(pc.Spec.ImagePullSecrets))
-	for _, secretName := range pc.Spec.ImagePullSecrets {
+	// Configure image pull secrets copy from Helm values (ManagedControlPlane cluster: copy to flux-system namespace)
+	imagePullSecretObjs := make([]ManagedObject, 0, len(helmValues.ImagePullSecrets))
+	for _, secretRef := range helmValues.ImagePullSecrets {
 		secretObj := ConfigureSecretCopy(mcpCluster, SecretCopyConfig{
 			SourceClient: ctx.PlatformClient,
-			SourceKey:    types.NamespacedName{Namespace: ctx.SourceNamespace, Name: secretName},
-			TargetKey:    types.NamespacedName{Namespace: FluxNamespace, Name: secretName},
+			SourceKey:    types.NamespacedName{Namespace: ctx.SourceNamespace, Name: secretRef.Name},
+			TargetKey:    types.NamespacedName{Namespace: FluxNamespace, Name: secretRef.Name},
 		})
 		imagePullSecretObjs = append(imagePullSecretObjs, secretObj)
 	}
@@ -166,13 +170,9 @@ func Configure(platformCluster, mcpCluster ManagedCluster, namespace string, obj
 				StorageNamespace: FluxNamespace,
 			}
 
-			// Build Helm values with image pull secrets
-			helmValues, err := buildHelmValues(pc)
-			if err != nil {
-				return fmt.Errorf("failed to build helm values: %w", err)
-			}
-			if helmValues != nil {
-				helmRelease.Spec.Values = helmValues
+			// Pass through user-provided Helm values directly
+			if pc.Spec.Values != nil {
+				helmRelease.Spec.Values = pc.Spec.Values
 			}
 
 			return nil
@@ -182,44 +182,8 @@ func Configure(platformCluster, mcpCluster ManagedCluster, namespace string, obj
 		StatusFunc:     FluxStatus,
 	})
 	platformCluster.AddObject(helmRelease)
-}
 
-// buildHelmValues builds Helm values from ProviderConfig.
-// Image pull secrets from spec.imagePullSecrets are added to the values and will
-// override any imagePullSecrets specified in spec.values.
-func buildHelmValues(pc *apiv1alpha1.ProviderConfig) (*apiextensionsv1.JSON, error) {
-	// Start with empty values
-	values := make(map[string]any)
-
-	// Merge with user-provided values first
-	if pc.Spec.Values != nil && len(pc.Spec.Values.Raw) > 0 {
-		if err := json.Unmarshal(pc.Spec.Values.Raw, &values); err != nil {
-			return nil, fmt.Errorf("failed to unmarshal user values: %w", err)
-		}
-	}
-
-	// Set image pull secrets from spec.imagePullSecrets (overrides any values.imagePullSecrets).
-	// Only secrets listed in spec.imagePullSecrets are copied to the ManagedControlPlane, so we don't merge
-	// with values.imagePullSecrets to avoid confusion - those secrets wouldn't exist on the ManagedControlPlane.
-	if len(pc.Spec.ImagePullSecrets) > 0 {
-		secrets := make([]map[string]string, 0, len(pc.Spec.ImagePullSecrets))
-		for _, name := range pc.Spec.ImagePullSecrets {
-			secrets = append(secrets, map[string]string{"name": name})
-		}
-		values["imagePullSecrets"] = secrets
-	}
-
-	// Return nil if no values
-	if len(values) == 0 {
-		return nil, nil
-	}
-
-	raw, err := json.Marshal(values)
-	if err != nil {
-		return nil, fmt.Errorf("failed to marshal helm values: %w", err)
-	}
-
-	return &apiextensionsv1.JSON{Raw: raw}, nil
+	return nil
 }
 
 // FluxStatus indicates whether the given Flux object is in phase terminating, pending or ready.

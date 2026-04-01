@@ -38,113 +38,71 @@ import (
 	apiv1alpha1 "github.com/openmcp-project/service-provider-flux/api/v1alpha1"
 )
 
-// TestBuildHelmValues tests the buildHelmValues function
-func TestBuildHelmValues(t *testing.T) {
+// TestExtractHelmValues tests the ExtractHelmValues function
+func TestExtractHelmValues(t *testing.T) {
 	tests := []struct {
 		name       string
-		pc         *apiv1alpha1.ProviderConfig
+		values     *apiextensionsv1.JSON
 		wantErr    bool
-		wantNil    bool
-		checkValue func(t *testing.T, values map[string]any)
+		checkValue func(t *testing.T, helmValues *HelmValues)
 	}{
 		{
-			name: "no values and no image pull secrets",
-			pc: &apiv1alpha1.ProviderConfig{
-				Spec: apiv1alpha1.ProviderConfigSpec{},
-			},
-			wantNil: true,
-		},
-		{
-			name: "only image pull secrets",
-			pc: &apiv1alpha1.ProviderConfig{
-				Spec: apiv1alpha1.ProviderConfigSpec{
-					ImagePullSecrets: []string{"secret-a", "secret-b"},
-				},
-			},
-			checkValue: func(t *testing.T, values map[string]any) {
-				secrets, ok := values["imagePullSecrets"].([]any)
-				require.True(t, ok)
-				assert.Len(t, secrets, 2)
-				s0 := secrets[0].(map[string]any)
-				s1 := secrets[1].(map[string]any)
-				assert.Equal(t, "secret-a", s0["name"])
-				assert.Equal(t, "secret-b", s1["name"])
+			name:   "nil values returns empty HelmValues",
+			values: nil,
+			checkValue: func(t *testing.T, helmValues *HelmValues) {
+				assert.Empty(t, helmValues.ImagePullSecrets)
 			},
 		},
 		{
-			name: "only user values",
-			pc: &apiv1alpha1.ProviderConfig{
-				Spec: apiv1alpha1.ProviderConfigSpec{
-					Values: mustMarshalJSON(t, map[string]any{
-						"helmController": map[string]any{
-							"image": "custom-image",
-						},
-					}),
-				},
-			},
-			checkValue: func(t *testing.T, values map[string]any) {
-				hc, ok := values["helmController"].(map[string]any)
-				require.True(t, ok)
-				assert.Equal(t, "custom-image", hc["image"])
+			name:   "empty raw values returns empty HelmValues",
+			values: &apiextensionsv1.JSON{Raw: []byte{}},
+			checkValue: func(t *testing.T, helmValues *HelmValues) {
+				assert.Empty(t, helmValues.ImagePullSecrets)
 			},
 		},
 		{
-			name: "spec.imagePullSecrets overrides values.imagePullSecrets",
-			pc: &apiv1alpha1.ProviderConfig{
-				Spec: apiv1alpha1.ProviderConfigSpec{
-					ImagePullSecrets: []string{"spec-secret"},
-					Values: mustMarshalJSON(t, map[string]any{
-						"imagePullSecrets": []map[string]any{
-							{"name": "values-secret"},
-						},
-						"helmController": map[string]any{
-							"image": "custom-image",
-						},
-					}),
+			name: "extracts imagePullSecrets",
+			values: mustMarshalJSON(t, map[string]any{
+				"imagePullSecrets": []map[string]any{
+					{"name": "secret-a"},
+					{"name": "secret-b"},
 				},
-			},
-			checkValue: func(t *testing.T, values map[string]any) {
-				secrets, ok := values["imagePullSecrets"].([]any)
-				require.True(t, ok)
-				// Only spec-secret should be present (overrides, not merges)
-				assert.Len(t, secrets, 1)
-				s0 := secrets[0].(map[string]any)
-				assert.Equal(t, "spec-secret", s0["name"])
-				// User values should be preserved
-				hc, ok := values["helmController"].(map[string]any)
-				require.True(t, ok)
-				assert.Equal(t, "custom-image", hc["image"])
+			}),
+			checkValue: func(t *testing.T, helmValues *HelmValues) {
+				require.Len(t, helmValues.ImagePullSecrets, 2)
+				assert.Equal(t, "secret-a", helmValues.ImagePullSecrets[0].Name)
+				assert.Equal(t, "secret-b", helmValues.ImagePullSecrets[1].Name)
 			},
 		},
 		{
-			name: "invalid JSON in values",
-			pc: &apiv1alpha1.ProviderConfig{
-				Spec: apiv1alpha1.ProviderConfigSpec{
-					Values: &apiextensionsv1.JSON{Raw: []byte("invalid json")},
+			name: "ignores other values",
+			values: mustMarshalJSON(t, map[string]any{
+				"helmController": map[string]any{
+					"image": "custom-image",
 				},
+			}),
+			checkValue: func(t *testing.T, helmValues *HelmValues) {
+				assert.Empty(t, helmValues.ImagePullSecrets)
 			},
+		},
+		{
+			name:    "invalid JSON returns error",
+			values:  &apiextensionsv1.JSON{Raw: []byte("invalid json")},
 			wantErr: true,
 		},
 	}
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			result, err := buildHelmValues(tt.pc)
+			result, err := ExtractHelmValues(tt.values)
 			if tt.wantErr {
 				assert.Error(t, err)
 				return
 			}
 			require.NoError(t, err)
-			if tt.wantNil {
-				assert.Nil(t, result)
-				return
-			}
 			require.NotNil(t, result)
-			var values map[string]any
-			err = json.Unmarshal(result.Raw, &values)
-			require.NoError(t, err)
 			if tt.checkValue != nil {
-				tt.checkValue(t, values)
+				tt.checkValue(t, result)
 			}
 		})
 	}

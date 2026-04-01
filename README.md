@@ -116,12 +116,13 @@ spec:
   # Optional: Secret for private chart registry
   chartPullSecret: "chart-registry-credentials"
 
-  # Optional: Secrets for private image registry
-  imagePullSecrets:
-    - "image-registry-credentials"
-
   # Optional: Custom Helm values
   values:
+    # Image pull secrets for private registries (will be copied to ManagedControlPlane)
+    imagePullSecrets:
+      - name: "image-registry-credentials"
+
+    # Custom controller images
     helmController:
       image: my-registry.example.com/fluxcd/helm-controller
     sourceController:
@@ -135,7 +136,6 @@ spec:
 |-------|------|-------------|
 | `spec.chartUrl` | string | OCI registry URL for the Flux Helm chart |
 | `spec.chartPullSecret` | string | Secret name for chart registry authentication |
-| `spec.imagePullSecrets` | []string | Secret names for image registry authentication |
 | `spec.values` | object | Custom Helm values for Flux deployment |
 | `spec.pollInterval` | duration | How often to reconcile resources (default: 1m) |
 
@@ -153,9 +153,9 @@ metadata:
 spec:
   chartUrl: "oci://harbor.internal/charts/flux2"
   chartPullSecret: "harbor-credentials"
-  imagePullSecrets:
-    - "harbor-credentials"
   values:
+    imagePullSecrets:
+      - name: "harbor-credentials"
     helmController:
       image: harbor.internal/fluxcd/helm-controller
     sourceController:

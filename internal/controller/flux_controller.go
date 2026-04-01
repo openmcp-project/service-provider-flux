@@ -103,11 +103,13 @@ func (r *FluxReconciler) createObjectManager(obj *apiv1alpha1.Flux, pc *apiv1alp
 	mcpCluster := flux.NewManagedCluster(clusterCtx.MCPCluster, clusterCtx.MCPCluster.RESTConfig(), flux.FluxNamespace, flux.ManagedControlPlane)
 
 	// Configure Flux resources with secret copying support
-	flux.Configure(platformCluster, mcpCluster, tenantNamespace, obj, pc, clusterCtx, flux.ConfigureContext{
+	if err := flux.Configure(platformCluster, mcpCluster, tenantNamespace, obj, pc, clusterCtx, flux.ConfigureContext{
 		PlatformClient:  r.PlatformCluster.Client(),
 		MCPClient:       clusterCtx.MCPCluster.Client(),
 		SourceNamespace: r.PodNamespace,
-	})
+	}); err != nil {
+		return nil, fmt.Errorf("failed to configure Flux resources: %w", err)
+	}
 
 	// Create manager and add clusters
 	mgr := flux.NewManager()

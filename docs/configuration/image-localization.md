@@ -13,7 +13,7 @@ In air-gapped environments, you typically need to:
 The Flux service provider handles this through:
 
 - **`chartPullSecret`**: Credentials for pulling the Helm chart from a private OCI registry
-- **`imagePullSecrets`**: Credentials for pulling Flux controller images from private registries
+- **`values.imagePullSecrets`**: Credentials for pulling Flux controller images (specified in Helm values)
 - **`values`**: Custom Helm values for image location overrides
 
 ## Secret Flow
@@ -58,14 +58,15 @@ spec:
   # Will be copied to the tenant namespace on the platform cluster
   chartPullSecret: "chart-registry-credentials"
 
-  # Secrets for authenticating to the image registry
-  # Must exist in the service provider's namespace on the platform cluster
-  # Will be copied to flux-system namespace on the ManagedControlPlane
-  imagePullSecrets:
-    - "image-registry-credentials"
-
-  # Helm values for image location overrides
+  # Helm values for Flux deployment
   values:
+    # Image pull secrets for Flux controllers
+    # These secrets will be automatically copied from the service provider's namespace
+    # to the flux-system namespace on the ManagedControlPlane
+    imagePullSecrets:
+      - name: "image-registry-credentials"
+
+    # Image location overrides
     helmController:
       image: registry.internal.corp/fluxcd/helm-controller
     sourceController:
@@ -106,12 +107,9 @@ kubectl create secret docker-registry image-registry-credentials \
 
 ### Image Pull Secrets
 
-1. Secrets specified in `imagePullSecrets` are copied from the service provider's namespace on the platform cluster to `flux-system` on the ManagedControlPlane
-2. The Helm values are automatically configured with `imagePullSecrets` referencing these secrets
-3. The Flux controller pods use these secrets when pulling images
-
-> **Note:** Only secrets listed in `spec.imagePullSecrets` are copied to the ManagedControlPlane. Do not specify
-> `imagePullSecrets` in `spec.values` directly, as those secrets will not exist on the target cluster.
+1. Secrets specified in `values.imagePullSecrets` are extracted from the Helm values
+2. These secrets are copied from the service provider's namespace on the platform cluster to `flux-system` on the ManagedControlPlane
+3. The Helm values are passed through to Flux, which configures the controller pods with these secrets
 
 ## Complete Example
 
@@ -125,9 +123,12 @@ metadata:
 spec:
   chartUrl: "oci://harbor.corp.internal/charts/flux2"
   chartPullSecret: "harbor-credentials"
-  imagePullSecrets:
-    - "harbor-credentials"
   values:
+    # Image pull secrets - will be copied to ManagedControlPlane
+    imagePullSecrets:
+      - name: "harbor-credentials"
+
+    # Controller image overrides
     helmController:
       image: harbor.corp.internal/fluxcd/helm-controller
     sourceController:
