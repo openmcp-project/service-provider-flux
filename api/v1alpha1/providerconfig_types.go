@@ -19,20 +19,51 @@ package v1alpha1
 import (
 	"time"
 
+	apiextensionsv1 "k8s.io/apiextensions-apiserver/pkg/apis/apiextensions/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 )
 
-// EDIT THIS FILE!  THIS IS SCAFFOLDING FOR YOU TO OWN!
-// NOTE: json tags are required.  Any new fields you add must have json tags for the fields to be serialized.
-
 // ProviderConfigSpec defines the desired state of ProviderConfig
 type ProviderConfigSpec struct {
-	// INSERT ADDITIONAL SPEC FIELDS - desired state of cluster
-	// Important: Run "make" to regenerate code after modifying this file
-	// The following markers will use OpenAPI v3 schema to validate the value
-	// More info: https://book.kubebuilder.io/reference/markers/crd-validation.html
+	// ChartURL is the OCI registry URL for the Flux Helm chart.
+	// +optional
+	// +kubebuilder:default="oci://ghcr.io/fluxcd-community/charts/flux2"
+	ChartURL *string `json:"chartUrl,omitempty"`
 
-	// foo is an example field of ProviderConfig. Edit providerconfig_types.go to remove/update
+	// ChartPullSecret is the name of a Secret in the service provider's namespace
+	// containing credentials to pull the Helm chart from a private OCI registry.
+	// The secret will be copied to the tenant namespace on the platform cluster
+	// and referenced by the OCIRepository.
+	// The secret must be of type kubernetes.io/dockerconfigjson.
+	// +optional
+	ChartPullSecret string `json:"chartPullSecret,omitempty"`
+
+	// Values contains Helm values to override defaults for the Flux deployment.
+	// This field supports all configuration options from the Flux community Helm chart.
+	// See https://github.com/fluxcd-community/helm-charts/tree/main/charts/flux2 for available options.
+	//
+	// Image pull secrets for Flux controllers should be specified via values.imagePullSecrets.
+	// Any secrets referenced in imagePullSecrets will be automatically copied from the service
+	// provider's namespace to the flux-system namespace on the ManagedControlPlane.
+	//
+	// Common use cases include:
+	// - Image localization for air-gapped environments
+	// - Resource limits and requests
+	// - Controller-specific configurations
+	//
+	// Example for air-gapped environments:
+	//   values:
+	//     imagePullSecrets:
+	//       - name: my-registry-credentials
+	//     helmController:
+	//       image: my-registry.example.com/fluxcd/helm-controller
+	//     sourceController:
+	//       image: my-registry.example.com/fluxcd/source-controller
+	//
+	// +optional
+	Values *apiextensionsv1.JSON `json:"values,omitempty"`
+
+	// PollInterval determines how often to reconcile resources to prevent drift.
 	// +optional
 	// +kubebuilder:default:="1m"
 	// +kubebuilder:validation:Format=duration

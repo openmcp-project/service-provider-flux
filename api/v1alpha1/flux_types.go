@@ -17,33 +17,45 @@ limitations under the License.
 package v1alpha1
 
 import (
+	corev1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 )
 
-// EDIT THIS FILE!  THIS IS SCAFFOLDING FOR YOU TO OWN!
-// NOTE: json tags are required.  Any new fields you add must have json tags for the fields to be serialized.
+// InstancePhase is a custom type representing the phase of a service instance.
+type InstancePhase string
 
-// {{.Kind}}Spec defines the desired state of {{.Kind}}
-type {{.Kind}}Spec struct {
-	// INSERT ADDITIONAL SPEC FIELDS - desired state of cluster
-	// Important: Run "make" to regenerate code after modifying this file
-	// The following markers will use OpenAPI v3 schema to validate the value
-	// More info: https://book.kubebuilder.io/reference/markers/crd-validation.html
+// ResourceLocation is a custom type representing the location of a resource.
+type ResourceLocation string
 
-	// foo is an example field of {{.Kind}}. Edit {{.KindLower}}_types.go to remove/update
-	// +optional
-	Foo *string `json:"foo,omitempty"`
+// Constants representing the phases of an instance lifecycle.
+const (
+	Pending     InstancePhase = "Pending"
+	Progressing InstancePhase = "Progressing"
+	Ready       InstancePhase = "Ready"
+	Failed      InstancePhase = "Failed"
+	Terminating InstancePhase = "Terminating"
+	Unknown     InstancePhase = "Unknown"
+
+	ManagedControlPlane ResourceLocation = "ManagedControlPlane"
+	PlatformCluster     ResourceLocation = "PlatformCluster"
+	WorkloadCluster     ResourceLocation = "WorkloadCluster"
+)
+
+// FluxSpec defines the desired state of Flux
+type FluxSpec struct {
+	// Version is the version to install Flux.
+	Version string `json:"version"`
 }
 
-// {{.Kind}}Status defines the observed state of {{.Kind}}.
-type {{.Kind}}Status struct {
+// FluxStatus defines the observed state of Flux.
+type FluxStatus struct {
 	// INSERT ADDITIONAL STATUS FIELD - define observed state of cluster
 	// Important: Run "make" to regenerate code after modifying this file
 
 	// For Kubernetes API conventions, see:
 	// https://github.com/kubernetes/community/blob/master/contributors/devel/sig-architecture/api-conventions.md#typical-status-properties
 
-	// conditions represent the current state of the {{.Kind}} resource.
+	// conditions represent the current state of the Flux resource.
 	// Each condition has a unique type and reflects the status of a specific aspect of the resource.
 	//
 	// Standard condition types include:
@@ -60,64 +72,79 @@ type {{.Kind}}Status struct {
 	ObservedGeneration int64 `json:"observedGeneration"`
 	// Phase is the current phase of the resource.
 	Phase string `json:"phase"`
+	// Resources managed by this Flux instance
+	// +optional
+	Resources []ManagedResource `json:"resources,omitempty"`
 }
 
-// {{.Kind}} is the Schema for the {{.KindLower}}s API
+// ManagedResource defines a kubernetes object with its lifecycle phase
+type ManagedResource struct {
+	corev1.TypedObjectReference `json:",inline"`
+
+	// +required
+	Phase InstancePhase `json:"phase"`
+	// +optional
+	Message string `json:"message,omitempty"`
+	// +optional
+	Location ResourceLocation `json:"location,omitempty"`
+}
+
+// Flux is the Schema for the fluxs API
 // +kubebuilder:object:root=true
 // +kubebuilder:subresource:status
 // +kubebuilder:printcolumn:JSONPath=`.status.phase`,name="Phase",type=string
 // +kubebuilder:printcolumn:name="Age",type="date",JSONPath=".metadata.creationTimestamp"
 // +kubebuilder:metadata:labels="openmcp.cloud/cluster=onboarding"
-type {{.Kind}} struct {
+type Flux struct {
 	metav1.TypeMeta `json:",inline"`
 
 	// metadata is a standard object metadata
 	// +optional
 	metav1.ObjectMeta `json:"metadata,omitempty,omitzero"`
 
-	// spec defines the desired state of {{.Kind}}
+	// spec defines the desired state of Flux
 	// +required
-	Spec {{.Kind}}Spec `json:"spec"`
+	Spec FluxSpec `json:"spec"`
 
-	// status defines the observed state of {{.Kind}}
+	// status defines the observed state of Flux
 	// +optional
-	Status {{.Kind}}Status `json:"status,omitempty,omitzero"`
+	Status FluxStatus `json:"status,omitempty,omitzero"`
 }
 
 // +kubebuilder:object:root=true
 
-// {{.Kind}}List contains a list of {{.Kind}}
-type {{.Kind}}List struct {
+// FluxList contains a list of Flux
+type FluxList struct {
 	metav1.TypeMeta `json:",inline"`
 	metav1.ListMeta `json:"metadata,omitempty"`
-	Items           []{{.Kind}} `json:"items"`
+	Items           []Flux `json:"items"`
 }
 
 func init() {
-	SchemeBuilder.Register(&{{.Kind}}{}, &{{.Kind}}List{})
+	SchemeBuilder.Register(&Flux{}, &FluxList{})
 }
 
-// Finalizer returns the finalizer string for the {{.Kind}} resource
-func (o *{{.Kind}}) Finalizer() string {
+// Finalizer returns the finalizer string for the Flux resource
+func (o *Flux) Finalizer() string {
 	return GroupVersion.Group + "/finalizer"
 }
 
-// GetStatus returns the status of the {{.Kind}} resource
-func (o *{{.Kind}}) GetStatus() any {
+// GetStatus returns the status of the Flux resource
+func (o *Flux) GetStatus() any {
 	return o.Status
 }
 
-// GetConditions returns the conditions of the {{.Kind}} resource
-func (o *{{.Kind}}) GetConditions() *[]metav1.Condition {
+// GetConditions returns the conditions of the Flux resource
+func (o *Flux) GetConditions() *[]metav1.Condition {
 	return &o.Status.Conditions
 }
 
-// SetPhase sets the phase of the {{.Kind}} resource status
-func (o *{{.Kind}}) SetPhase(phase string) {
+// SetPhase sets the phase of the Flux resource status
+func (o *Flux) SetPhase(phase string) {
 	o.Status.Phase = phase
 }
 
-// SetObservedGeneration sets the observed generation of the {{.Kind}} resource
-func (o *{{.Kind}}) SetObservedGeneration(gen int64) {
+// SetObservedGeneration sets the observed generation of the Flux resource
+func (o *Flux) SetObservedGeneration(gen int64) {
 	o.Status.ObservedGeneration = gen
 }

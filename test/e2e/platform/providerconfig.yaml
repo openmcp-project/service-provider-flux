@@ -1,6 +1,11 @@
-apiVersion: foo.services.openmcp.cloud/v1alpha1
+apiVersion: flux.services.openmcp.cloud/v1alpha1
 kind: ProviderConfig
 metadata:
-  name: default
+  name: flux
 spec:
+  chartUrl: "oci://ghcr.io/fluxcd-community/charts/flux2"
   pollInterval: 1m
+  chartPullSecret: flux-registry-credentials
+  values:
+    imagePullSecrets:
+      - name: flux-registry-credentials

@@ -1,0 +1,7 @@
+apiVersion: flux.services.openmcp.cloud/v1alpha1
+kind: Flux
+metadata:
+  name: test-mcp
+  namespace: default
+spec:
+  version: "2.16.2"
