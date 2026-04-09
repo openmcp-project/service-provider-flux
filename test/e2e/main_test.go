@@ -40,7 +40,7 @@ func TestMain(m *testing.M) {
 		ServiceProviders: []providers.ServiceProviderSetup{
 			{
 				Name:               "flux",
-				Image:              fmt.Sprintf("ghcr.io/openmcp-project/images/service-provider-external-secrets:%s", version),
+				Image:              fmt.Sprintf("ghcr.io/openmcp-project/images/service-provider-flux:%s", version),
 				LoadImageToCluster: true,
 			},
 		},
