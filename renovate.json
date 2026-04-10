@@ -6,7 +6,7 @@
     "security:openssf-scorecard",
     "helpers:pinGitHubActionDigests",
     ":rebaseStalePrs",
-    ":enableVulnerabilityAlert"
+    ":enableVulnerabilityAlerts"
   ],
   "git-submodules": {
     "enabled": true
