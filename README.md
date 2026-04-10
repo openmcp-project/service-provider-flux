@@ -107,12 +107,6 @@ spec:
   image: ghcr.io/openmcp-project/images/service-provider-flux:v0.1.0
 ```
 
-| Field | Type | Description |
-|-------|------|-------------|
-| `metadata.name` | string | **Must be `flux`** - the ProviderConfig name must match this |
-| `metadata.namespace` | string | The namespace where the openmcp operator runs (typically `openmcp-system`) |
-| `spec.image` | string | Container image for the service provider controller |
-
 ## 📝 API Reference
 
 ### Flux
