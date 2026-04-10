@@ -49,7 +49,7 @@ spec:
             description: spec defines the desired state of Flux
             properties:
               version:
-                description: Version is the version to install Flux.
+                description: Version is the Flux Helm chart version to install.
                 type: string
             required:
             - version

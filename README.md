@@ -125,7 +125,7 @@ spec:
 
 | Field | Type | Description |
 |-------|------|-------------|
-| `spec.version` | string | The version of Flux to install |
+| `spec.version` | string | The Helm chart version of Flux to install |
 
 ### ProviderConfig
 
