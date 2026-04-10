@@ -43,7 +43,7 @@ const (
 
 // FluxSpec defines the desired state of Flux
 type FluxSpec struct {
-	// Version is the version to install Flux.
+	// Version is the Flux Helm chart version to install.
 	Version string `json:"version"`
 }
 
