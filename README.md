@@ -93,6 +93,26 @@ task test-e2e
 
 This will build the image and run the full e2e test suite.
 
+## 📦 Installation
+
+To install the Flux service provider, create a `ServiceProvider` resource in your platform cluster:
+
+```yaml
+apiVersion: openmcp.cloud/v1alpha1
+kind: ServiceProvider
+metadata:
+  name: flux
+  namespace: openmcp-system
+spec:
+  image: ghcr.io/openmcp-project/images/service-provider-flux:v0.1.0
+```
+
+| Field | Type | Description |
+|-------|------|-------------|
+| `metadata.name` | string | **Must be `flux`** - the ProviderConfig name must match this |
+| `metadata.namespace` | string | The namespace where the openmcp operator runs (typically `openmcp-system`) |
+| `spec.image` | string | Container image for the service provider controller |
+
 ## 📝 API Reference
 
 ### Flux
