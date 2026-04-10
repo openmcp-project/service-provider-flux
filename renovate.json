@@ -5,18 +5,13 @@
     "config:best-practices",
     "security:openssf-scorecard",
     "helpers:pinGitHubActionDigests",
-    ":rebaseStalePrs"
+    ":rebaseStalePrs",
+    ":enableVulnerabilityAlerts"
   ],
-  "customManagers": [
-    {
-      "description": "Task tools",
-      "customType": "regex",
-      "managerFilePatterns": [
-        "/tasks_tools\\.yaml/"
-      ],
-      "matchStrings": [
-        "# renovate: datasource=(?<datasource>[a-z-.]+?) depName=(?<depName>[^\\s]+?)(?: (lookupName|packageName)=(?<packageName>[^\\s]+?))?(?: versioning=(?<versioning>[^\\s]+?))?(?: extractVersion=(?<extractVersion>[^\\s]+?))?(?: registryUrl=(?<registryUrl>[^\\s]+?))?\\s.+?default \"(?<currentValue>.+?)\"\\s"
-      ]
-    }
+  "git-submodules": {
+    "enabled": true
+  },
+  "postUpdateOptions": [
+    "gomodTidy"
   ]
 }
