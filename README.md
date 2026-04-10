@@ -121,7 +121,7 @@ The `ProviderConfig` resource configures global settings for all Flux deployment
 apiVersion: flux.services.openmcp.cloud/v1alpha1
 kind: ProviderConfig
 metadata:
-  name: flux-provider-config
+  name: flux
 spec:
   # Flux Helm chart location
   chartUrl: "oci://ghcr.io/fluxcd-community/charts/flux2"
@@ -162,7 +162,7 @@ Quick example:
 apiVersion: flux.services.openmcp.cloud/v1alpha1
 kind: ProviderConfig
 metadata:
-  name: flux-airgapped
+  name: flux
 spec:
   chartUrl: "oci://harbor.internal/charts/flux2"
   chartPullSecret: "harbor-credentials"
