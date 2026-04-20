@@ -56,7 +56,7 @@ func TestServiceProvider(t *testing.T) {
 			},
 		).
 		Assess("Platform Cluster: chart pull secret synced to tenant namespace",
-			chartSecretSynced("flux-registry-credentials")).
+			chartSecretSynced("sp-flux-flux-registry-credentials")).
 		Assess("ManagedControlPlane: image pull secret synced to flux-system namespace",
 			imagePullSecretSynced(mcpName, client.ObjectKey{Name: "flux-registry-credentials", Namespace: "flux-system"})).
 		Assess("domain objects can be created", func(ctx context.Context, t *testing.T, c *envconf.Config) context.Context {

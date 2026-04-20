@@ -15,6 +15,8 @@ package flux
 
 import (
 	"context"
+	"fmt"
+	"strings"
 	"testing"
 
 	"github.com/stretchr/testify/assert"
@@ -58,6 +60,19 @@ func TestManagePullSecrets(t *testing.T) {
 				TargetNamespace: "target-ns",
 			},
 		},
+		{
+			name:          "sync secret with target name adjustment",
+			targetCluster: NewManagedCluster(fakeCluster, &rest.Config{}, "target-ns", ManagedControlPlane),
+			imagePullSecrets: []corev1.LocalObjectReference{
+				{Name: "test-pull-secret"},
+			},
+			config: SecretCopyConfig{
+				SourceClient:    fakeCluster.Client(),
+				SourceNamespace: "source-ns",
+				TargetNamespace: "target-ns",
+				TargetName:      fmt.Sprintf("%s%s", secretNamePrefix, "test-pull-secret"),
+			},
+		},
 	}
 
 	for _, tt := range tests {
@@ -75,8 +90,12 @@ func TestManagePullSecrets(t *testing.T) {
 			// Verify secret was synced with correct type
 			for _, pullSecret := range tt.imagePullSecrets {
 				targetSecret := &corev1.Secret{}
+				targetSecretName := pullSecret.Name
+				if tt.config.TargetName != "" {
+					targetSecretName = tt.config.TargetName
+				}
 				err := fakeCluster.Client().Get(context.Background(), client.ObjectKey{
-					Name:      pullSecret.Name,
+					Name:      targetSecretName,
 					Namespace: tt.config.TargetNamespace,
 				}, targetSecret)
 				require.NoError(t, err)
@@ -84,6 +103,26 @@ func TestManagePullSecrets(t *testing.T) {
 				assert.Equal(t, sourceSecret.Data, targetSecret.Data)
 				assert.Equal(t, corev1.SecretTypeDockerConfigJson, targetSecret.Type, "target secret should have the correct type")
 			}
+		})
+	}
+}
+
+func TestPrefixSecretName(t *testing.T) {
+	tests := []struct {
+		name    string
+		input   string
+		wantLen int // expected max length
+		wantErr bool
+	}{
+		{"short name", "privateregcred", 22, false}, // "sp-flux-" + 14 chars
+		{"long name truncated", strings.Repeat("a", 60), 63, false},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			got, err := PrefixSecretName(tt.input)
+			require.NoError(t, err)
+			assert.True(t, strings.HasPrefix(got, secretNamePrefix))
+			assert.LessOrEqual(t, len(got), 63)
 		})
 	}
 }
