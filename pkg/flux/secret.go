@@ -17,6 +17,7 @@ import (
 	"context"
 	"fmt"
 
+	ctrlutils "github.com/openmcp-project/controller-utils/pkg/controller"
 	openmcpresources "github.com/openmcp-project/controller-utils/pkg/resources"
 	corev1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
@@ -24,6 +25,8 @@ import (
 
 	apiv1alpha1 "github.com/openmcp-project/service-provider-flux/api/v1alpha1"
 )
+
+const secretNamePrefix = "sp-flux-"
 
 // SecretCopyConfig holds the configuration for copying secrets.
 type SecretCopyConfig struct {
@@ -33,14 +36,21 @@ type SecretCopyConfig struct {
 	SourceNamespace string
 	// TargetNamespace is the namespace of the target secret.
 	TargetNamespace string
+	// TargetName is an optional value to adjust the name of the target secret
+	// instead of using the source secret name.
+	TargetName string
 }
 
 // ManagePullSecrets syncs every image pull secret to the target cluster.
 func ManagePullSecrets(targetCluster ManagedCluster, imagePullSecrets []corev1.LocalObjectReference, config SecretCopyConfig) {
 	for _, pullSecret := range imagePullSecrets {
+		secretName := pullSecret.Name
+		if config.TargetName != "" {
+			secretName = config.TargetName
+		}
 		secret := NewManagedObject(&corev1.Secret{
 			ObjectMeta: metav1.ObjectMeta{
-				Name:      pullSecret.Name,
+				Name:      secretName,
 				Namespace: config.TargetNamespace,
 			},
 		}, ManagedObjectContext{
@@ -59,7 +69,7 @@ func ManagePullSecrets(targetCluster ManagedCluster, imagePullSecrets []corev1.L
 				if err := config.SourceClient.Get(ctx, client.ObjectKeyFromObject(sourceSecret), sourceSecret); err != nil {
 					return err
 				}
-				mutator := openmcpresources.NewSecretMutator(pullSecret.Name, config.TargetNamespace, sourceSecret.Data, corev1.SecretTypeDockerConfigJson)
+				mutator := openmcpresources.NewSecretMutator(secretName, config.TargetNamespace, sourceSecret.Data, corev1.SecretTypeDockerConfigJson)
 				return mutator.Mutate(oSecret)
 			},
 			StatusFunc: SimpleStatus,
@@ -89,4 +99,12 @@ func SecretStatus(o client.Object, rl apiv1alpha1.ResourceLocation) Status {
 		Message:  "Secret exists.",
 		Location: rl,
 	}
+}
+
+// PrefixSecretName adds the "sp-flux-" prefix to the given secret name
+// to prevent name collisions in namespaces where multiple service providers operate.
+// If the resulting name exceeds 63 characters (K8s limit), it will be truncated
+// and a hash suffix appended for uniqueness via ShortenToXCharacters.
+func PrefixSecretName(secretName string) (string, error) {
+	return ctrlutils.ShortenToXCharacters(fmt.Sprintf("%s%s", secretNamePrefix, secretName), ctrlutils.K8sMaxNameLength)
 }

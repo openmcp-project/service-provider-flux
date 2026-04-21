@@ -122,18 +122,31 @@ func (r *FluxReconciler) createObjectManager(obj *apiv1alpha1.Flux, pc *apiv1alp
 	})
 
 	// Sync chart pull secret within platform cluster from pod namespace to tenant namespace
+	var prefixedChartPullSecret string
 	if pc.Spec.ChartPullSecret != "" {
+		prefixedChartPullSecret, err = flux.PrefixSecretName(pc.Spec.ChartPullSecret)
+		if err != nil {
+			return nil, fmt.Errorf("error generating secret name: %w", err)
+		}
 		flux.ManagePullSecrets(platformCluster, []corev1.LocalObjectReference{
 			{Name: pc.Spec.ChartPullSecret},
 		}, flux.SecretCopyConfig{
 			SourceClient:    r.PlatformCluster.Client(),
 			SourceNamespace: r.PodNamespace,
 			TargetNamespace: tenantNamespace,
+			TargetName:      prefixedChartPullSecret,
 		})
 	}
 
 	// Configure Flux resources (OCIRepository and HelmRelease)
-	flux.ManageFluxResources(platformCluster, fluxNamespace, obj, pc, clusters)
+	flux.ManageFluxResources(flux.ManageFluxResourcesParams{
+		Cluster:             platformCluster,
+		MCPNamespace:        fluxNamespace,
+		ChartPullSecretName: prefixedChartPullSecret,
+		Obj:                 obj,
+		ProviderConfig:      pc,
+		ClusterContext:      clusters,
+	})
 
 	// Create manager and add clusters
 	mgr := flux.NewManager()
