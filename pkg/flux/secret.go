@@ -101,7 +101,7 @@ func SecretStatus(o client.Object, rl apiv1alpha1.ResourceLocation) Status {
 	}
 }
 
-// PrefixSecretName adds the "sp-eso-" prefix to the given secret name
+// PrefixSecretName adds the "sp-flux-" prefix to the given secret name
 // to prevent name collisions in namespaces where multiple service providers operate.
 // If the resulting name exceeds 63 characters (K8s limit), it will be truncated
 // and a hash suffix appended for uniqueness via ShortenToXCharacters.
