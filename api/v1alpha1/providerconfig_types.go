@@ -25,6 +25,29 @@ import (
 
 // ProviderConfigSpec defines the desired state of ProviderConfig
 type ProviderConfigSpec struct {
+	// Versions specify the valid inputs for the Flux.Spec.Version field.
+	// +required
+	Versions []FluxVersion `json:"versions"`
+
+	// PollInterval determines how often to reconcile resources to prevent drift.
+	// +optional
+	// +kubebuilder:default:="1m"
+	// +kubebuilder:validation:Format=duration
+	PollInterval *metav1.Duration `json:"pollInterval,omitempty"`
+}
+
+// FluxVersion defines a version of Flux that can be installed
+type FluxVersion struct {
+	// Version is the Flux version to install.
+	// This version is compared with Flux.Spec.Version to define available versions
+	// and the deployment artifacts of a version.
+	// +required
+	Version string `json:"version"`
+
+	// ChartVersion is the version of the Helm chart to install
+	// +required
+	CharVersion string `json:"chartVersion"`
+
 	// ChartURL is the OCI registry URL for the Flux Helm chart.
 	// +optional
 	// +kubebuilder:default="oci://ghcr.io/fluxcd-community/charts/flux2"
@@ -62,12 +85,6 @@ type ProviderConfigSpec struct {
 	//
 	// +optional
 	Values *apiextensionsv1.JSON `json:"values,omitempty"`
-
-	// PollInterval determines how often to reconcile resources to prevent drift.
-	// +optional
-	// +kubebuilder:default:="1m"
-	// +kubebuilder:validation:Format=duration
-	PollInterval *metav1.Duration `json:"pollInterval,omitempty"`
 }
 
 // ProviderConfigStatus defines the observed state of ProviderConfig.
@@ -129,6 +146,5 @@ func init() {
 
 // PollInterval returns the poll interval duration from the spec.
 func (o *ProviderConfig) PollInterval() time.Duration {
-	// TODO pollInterval has to be required
 	return o.Spec.PollInterval.Duration
 }
