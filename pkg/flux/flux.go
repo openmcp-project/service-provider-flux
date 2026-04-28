@@ -124,6 +124,9 @@ func ManageFluxResources(p ManageFluxResourceParams) {
 					KeepHistory: false,
 					Timeout:     &metav1.Duration{Duration: 5 * time.Minute},
 				},
+				DriftDetection: &helmv2.DriftDetection{
+					Mode: helmv2.DriftDetectionEnabled,
+				},
 				Values:           p.RequestVersion.Values,
 				TargetNamespace:  p.FluxNamespace,
 				StorageNamespace: p.FluxNamespace,
