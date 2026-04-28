@@ -125,12 +125,14 @@ metadata:
   name: my-flux
   namespace: default
 spec:
-  version: "2.16.2"
+  version: "2.8.3"
 ```
 
 | Field | Type | Description |
 |-------|------|-------------|
-| `spec.version` | string | The Helm chart version of Flux to install |
+| `spec.version` | string | The version of Flux to install |
+
+Note that any version that should be available to users have to be defined in the `ProviderConfig`.
 
 ### ProviderConfig
 
@@ -144,9 +146,11 @@ metadata:
 spec:
   # Optional: Reconciliation interval
   pollInterval: "5m"
-  # The flux versions that can be installed
+  # The Flux versions that can be installed
   versions:
-    - version: "2.16.2"
+    - version: "2.8.3"
+      # Flux Helm chart version
+      chartVersion: "2.18.2"
       # Flux Helm chart location
       chartUrl: "oci://ghcr.io/fluxcd-community/charts/flux2"
       # Optional: Secret for private chart registry
@@ -174,6 +178,7 @@ A version item is defined as follows:
 | Field | Type | Description |
 |-------|------|-------------|
 | `version` | string | The Flux version that this item defines |
+| `chartVersion` | string | The Flux Helm chart version to install |
 | `chartUrl` | string | OCI registry URL for the Flux Helm chart |
 | `chartPullSecret` | string | Secret name for chart registry authentication |
 | `values` | object | Custom Helm values for Flux deployment |

@@ -66,6 +66,10 @@ spec:
                       description: ChartURL is the OCI registry URL for the Flux Helm
                         chart.
                       type: string
+                    chartVersion:
+                      description: ChartVersion is the version of the Helm chart to
+                        install
+                      type: string
                     values:
                       description: |-
                         Values contains Helm values to override defaults for the Flux deployment.
@@ -97,6 +101,7 @@ spec:
                         and the deployment artifacts of a version.
                       type: string
                   required:
+                  - chartVersion
                   - version
                   type: object
                 type: array

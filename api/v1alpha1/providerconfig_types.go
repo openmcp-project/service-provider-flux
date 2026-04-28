@@ -44,6 +44,10 @@ type FluxVersion struct {
 	// +required
 	Version string `json:"version"`
 
+	// ChartVersion is the version of the Helm chart to install
+	// +required
+	CharVersion string `json:"chartVersion"`
+
 	// ChartURL is the OCI registry URL for the Flux Helm chart.
 	// +optional
 	// +kubebuilder:default="oci://ghcr.io/fluxcd-community/charts/flux2"

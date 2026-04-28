@@ -66,7 +66,7 @@ func ManageFluxResources(p ManageFluxResourceParams) {
 				Interval: metav1.Duration{Duration: p.ProviderConfig.PollInterval()},
 				URL:      *p.RequestVersion.ChartURL,
 				Reference: &sourcev1.OCIRepositoryRef{
-					Tag: p.RequestVersion.Version,
+					Tag: p.RequestVersion.CharVersion,
 				},
 			}
 			if p.RequestVersion.ChartPullSecret != "" {

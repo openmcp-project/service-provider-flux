@@ -5,7 +5,8 @@ metadata:
 spec:
   pollInterval: 1m
   versions:
-    - version: "2.16.2"
+    - version: "2.8.3"
+      chartVersion: "2.18.2"
       chartUrl: "oci://ghcr.io/fluxcd-community/charts/flux2"
       chartPullSecret: flux-registry-credentials
       values:
