@@ -383,7 +383,12 @@ func createProviderConfig() *apiv1alpha1.ProviderConfig {
 			Name: "test-provider-config",
 		},
 		Spec: apiv1alpha1.ProviderConfigSpec{
-			ChartURL: &chartURL,
+			Versions: []apiv1alpha1.FluxVersion{
+				{
+					Version:  "todo",
+					ChartURL: &chartURL,
+				},
+			},
 			PollInterval: &metav1.Duration{
 				Duration: time.Minute,
 			},

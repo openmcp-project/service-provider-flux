@@ -60,27 +60,32 @@ flowchart LR
 ### 🛠️ Local Development
 
 1. **Clone the repository**
+
    ```bash
    git clone https://github.com/openmcp-project/service-provider-flux.git
    cd service-provider-flux
    ```
 
 2. **Install dependencies**
+
    ```bash
    go mod download
    ```
 
 3. **Build the binary**
+
    ```bash
    task build
    ```
 
 4. **Run tests**
+
    ```bash
    task test
    ```
 
 5. **Build the container image**
+
    ```bash
    task build:img:build
    ```
@@ -137,34 +142,41 @@ kind: ProviderConfig
 metadata:
   name: flux
 spec:
-  # Flux Helm chart location
-  chartUrl: "oci://ghcr.io/fluxcd-community/charts/flux2"
-
-  # Optional: Secret for private chart registry
-  chartPullSecret: "chart-registry-credentials"
-
-  # Optional: Custom Helm values
-  values:
-    # Image pull secrets for private registries (will be copied to ManagedControlPlane)
-    imagePullSecrets:
-      - name: "image-registry-credentials"
-
-    # Custom controller images
-    helmController:
-      image: my-registry.example.com/fluxcd/helm-controller
-    sourceController:
-      image: my-registry.example.com/fluxcd/source-controller
-
   # Optional: Reconciliation interval
   pollInterval: "5m"
+  # The flux versions that can be installed
+  versions:
+    - version: "2.16.2"
+      # Flux Helm chart location
+      chartUrl: "oci://ghcr.io/fluxcd-community/charts/flux2"
+      # Optional: Secret for private chart registry
+      chartPullSecret: "chart-registry-credentials"
+      # Optional: Custom Helm values
+      values:
+        # Image pull secrets for private registries (will be copied to ManagedControlPlane)
+        imagePullSecrets:
+          - name: "image-registry-credentials"
+
+        # Custom controller images
+        helmController:
+          image: my-registry.example.com/fluxcd/helm-controller
+        sourceController:
+          image: my-registry.example.com/fluxcd/source-controller
 ```
 
 | Field | Type | Description |
 |-------|------|-------------|
-| `spec.chartUrl` | string | OCI registry URL for the Flux Helm chart |
-| `spec.chartPullSecret` | string | Secret name for chart registry authentication |
-| `spec.values` | object | Custom Helm values for Flux deployment |
 | `spec.pollInterval` | duration | How often to reconcile resources (default: 1m) |
+| `spec.versions` | array | The versions of Flux that can be installed |
+
+A version item is defined as follows:
+
+| Field | Type | Description |
+|-------|------|-------------|
+| `version` | string | The Flux version that this item defines |
+| `chartUrl` | string | OCI registry URL for the Flux Helm chart |
+| `chartPullSecret` | string | Secret name for chart registry authentication |
+| `values` | object | Custom Helm values for Flux deployment |
 
 ## 🔐 Air-Gapped Environments
 

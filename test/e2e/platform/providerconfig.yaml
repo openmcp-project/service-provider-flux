@@ -3,9 +3,11 @@ kind: ProviderConfig
 metadata:
   name: flux
 spec:
-  chartUrl: "oci://ghcr.io/fluxcd-community/charts/flux2"
   pollInterval: 1m
-  chartPullSecret: flux-registry-credentials
-  values:
-    imagePullSecrets:
-      - name: flux-registry-credentials
+  versions:
+    - version: "2.16.2"
+      chartUrl: "oci://ghcr.io/fluxcd-community/charts/flux2"
+      chartPullSecret: flux-registry-credentials
+      values:
+        imagePullSecrets:
+          - name: flux-registry-credentials

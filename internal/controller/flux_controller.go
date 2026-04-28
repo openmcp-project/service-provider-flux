@@ -98,8 +98,14 @@ func (r *FluxReconciler) createObjectManager(obj *apiv1alpha1.Flux, pc *apiv1alp
 		return nil, fmt.Errorf("failed to determine tenant namespace for Flux deployment: %w", err)
 	}
 
+	// select requested version from provider config
+	fluxVersion, err := selectFluxVersion(obj.Spec.Version, pc)
+	if err != nil {
+		return nil, err
+	}
+
 	// Extract helm values to determine namespace and image pull secrets
-	helmValues, err := flux.ExtractHelmValues(pc.Spec.Values)
+	helmValues, err := flux.ExtractHelmValues(fluxVersion.Values)
 	if err != nil {
 		return nil, fmt.Errorf("failed to extract helm values: %w", err)
 	}
@@ -122,9 +128,9 @@ func (r *FluxReconciler) createObjectManager(obj *apiv1alpha1.Flux, pc *apiv1alp
 	})
 
 	// Sync chart pull secret within platform cluster from pod namespace to tenant namespace
-	if pc.Spec.ChartPullSecret != "" {
+	if fluxVersion.ChartPullSecret != "" {
 		flux.ManagePullSecrets(platformCluster, []corev1.LocalObjectReference{
-			{Name: pc.Spec.ChartPullSecret},
+			{Name: fluxVersion.ChartPullSecret},
 		}, flux.SecretCopyConfig{
 			SourceClient:    r.PlatformCluster.Client(),
 			SourceNamespace: r.PodNamespace,
@@ -133,7 +139,14 @@ func (r *FluxReconciler) createObjectManager(obj *apiv1alpha1.Flux, pc *apiv1alp
 	}
 
 	// Configure Flux resources (OCIRepository and HelmRelease)
-	flux.ManageFluxResources(platformCluster, fluxNamespace, obj, pc, clusters)
+	flux.ManageFluxResources(flux.ManageFluxResourceParams{
+		Cluster:        platformCluster,
+		FluxNamespace:  fluxNamespace,
+		Obj:            obj,
+		ProviderConfig: pc,
+		RequestVersion: fluxVersion,
+		ClusterContext: clusters,
+	})
 
 	// Create manager and add clusters
 	mgr := flux.NewManager()
@@ -141,6 +154,15 @@ func (r *FluxReconciler) createObjectManager(obj *apiv1alpha1.Flux, pc *apiv1alp
 	mgr.AddCluster(platformCluster)
 
 	return mgr, nil
+}
+
+func selectFluxVersion(requestedVersion string, pc *apiv1alpha1.ProviderConfig) (apiv1alpha1.FluxVersion, error) {
+	for _, configVersion := range pc.Spec.Versions {
+		if configVersion.Version == requestedVersion {
+			return configVersion, nil
+		}
+	}
+	return apiv1alpha1.FluxVersion{}, fmt.Errorf("requested version is not available: %s", requestedVersion)
 }
 
 func resultsToResources(ctx context.Context, results []flux.Result) ([]apiv1alpha1.ManagedResource, bool) {

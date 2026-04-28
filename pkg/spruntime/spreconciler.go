@@ -362,11 +362,15 @@ func (r *SPReconciler[T, PC]) SetupWithManager(mgr ctrl.Manager, name string, pr
 				providerConfigUpdates,
 				handler.EnqueueRequestsFromMapFunc(
 					func(ctx context.Context, obj client.Object) []reconcile.Request {
+						l := logf.FromContext(ctx)
+						l.Info("provider config update received")
 						// update cached provider config
 						if obj != nil {
 							c := obj.DeepCopyObject().(PC)
+							l.Info("provider config update stored")
 							r.providerConfig.Store(&c)
 						} else {
+							l.Info("provider config set to nil")
 							r.providerConfig.Store(nil)
 						}
 						// reconcile all existing objects
@@ -381,6 +385,7 @@ func (r *SPReconciler[T, PC]) SetupWithManager(mgr ctrl.Manager, name string, pr
 							reqs[i] = reconcile.Request{
 								NamespacedName: client.ObjectKeyFromObject(&list.Items[i]),
 							}
+							l.Info("reconcile request created: %v", reqs[i])
 						}
 						return reqs
 					},
