@@ -14,6 +14,7 @@ import (
 	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
 	ctrl "sigs.k8s.io/controller-runtime"
 	"sigs.k8s.io/controller-runtime/pkg/client"
+	"sigs.k8s.io/controller-runtime/pkg/client/apiutil"
 	"sigs.k8s.io/controller-runtime/pkg/controller/controllerutil"
 	"sigs.k8s.io/controller-runtime/pkg/event"
 	"sigs.k8s.io/controller-runtime/pkg/handler"
@@ -367,17 +368,20 @@ func (r *SPReconciler[T, PC]) SetupWithManager(mgr ctrl.Manager, name string, pr
 						// update cached provider config
 						if obj != nil {
 							c := obj.DeepCopyObject().(PC)
-							l.Info("provider config update stored")
 							r.providerConfig.Store(&c)
 						} else {
-							l.Info("provider config set to nil")
 							r.providerConfig.Store(nil)
 						}
 						// reconcile all existing objects
+						gvk, err := apiutil.GVKForObject(r.emptyObj(), r.onboardingCluster.Scheme())
+						if err != nil {
+							l.Error(err, "failed to retrieve onboarding api gvk")
+							return nil
+						}
 						var list unstructured.UnstructuredList
-						gvk := r.emptyObj().GetObjectKind().GroupVersionKind()
 						list.SetGroupVersionKind(gvk)
 						if err := r.onboardingCluster.Client().List(ctx, &list); err != nil {
+							l.Error(err, "failed to retrieve onboarding api list")
 							return nil
 						}
 						reqs := make([]reconcile.Request, len(list.Items))
@@ -385,7 +389,6 @@ func (r *SPReconciler[T, PC]) SetupWithManager(mgr ctrl.Manager, name string, pr
 							reqs[i] = reconcile.Request{
 								NamespacedName: client.ObjectKeyFromObject(&list.Items[i]),
 							}
-							l.Info("reconcile request created: %v", reqs[i])
 						}
 						return reqs
 					},

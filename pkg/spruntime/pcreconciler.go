@@ -62,22 +62,18 @@ func (r *PCReconciler[T]) WithUpdateChannel(c chan event.GenericEvent) *PCReconc
 
 // Reconcile acts as a sender to notify receivers about provider config changes .
 func (r *PCReconciler[T]) Reconcile(ctx context.Context, req ctrl.Request) (ctrl.Result, error) {
-	l := log.FromContext(ctx)
-	l.Info("reconcile provider config")
+	log.FromContext(ctx).Info("reconcile provider config")
 	obj := r.emptyObj()
 	notify := event.GenericEvent{}
 	if err := r.platformCluster.Client().Get(ctx, req.NamespacedName, obj); err != nil {
-		l.Info("provider config not found")
 		r.providerUpdateChannel <- notify
 		return ctrl.Result{}, client.IgnoreNotFound(err)
 	}
 	if !obj.GetDeletionTimestamp().IsZero() {
-		l.Info("provider config deleted")
 		r.providerUpdateChannel <- notify
 		return ctrl.Result{}, nil
 	}
 	notify.Object = obj.DeepCopyObject().(T)
-	l.Info("provider config updated")
 	r.providerUpdateChannel <- notify
 	return ctrl.Result{}, nil
 }
