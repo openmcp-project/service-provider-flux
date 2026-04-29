@@ -60,27 +60,32 @@ flowchart LR
 ### 🛠️ Local Development
 
 1. **Clone the repository**
+
    ```bash
    git clone https://github.com/openmcp-project/service-provider-flux.git
    cd service-provider-flux
    ```
 
 2. **Install dependencies**
+
    ```bash
    go mod download
    ```
 
 3. **Build the binary**
+
    ```bash
    task build
    ```
 
 4. **Run tests**
+
    ```bash
    task test
    ```
 
 5. **Build the container image**
+
    ```bash
    task build:img:build
    ```
@@ -120,16 +125,18 @@ metadata:
   name: my-flux
   namespace: default
 spec:
-  version: "2.16.2"
+  version: "2.8.3"
 ```
 
 | Field | Type | Description |
 |-------|------|-------------|
-| `spec.version` | string | The Helm chart version of Flux to install |
+| `spec.version` | string | The version of Flux to install |
+
+Note that any version that should be available to users have to be defined in the `ProviderConfig`.
 
 ### ProviderConfig
 
-The `ProviderConfig` resource configures global settings for all Flux deployments.
+The `ProviderConfig` resource configures deployment settings for each version of Flux that the service provider supports.
 
 ```yaml
 apiVersion: flux.services.openmcp.cloud/v1alpha1
@@ -137,61 +144,50 @@ kind: ProviderConfig
 metadata:
   name: flux
 spec:
-  # Flux Helm chart location
-  chartUrl: "oci://ghcr.io/fluxcd-community/charts/flux2"
-
-  # Optional: Secret for private chart registry
-  chartPullSecret: "chart-registry-credentials"
-
-  # Optional: Custom Helm values
-  values:
-    # Image pull secrets for private registries (will be copied to ManagedControlPlane)
-    imagePullSecrets:
-      - name: "image-registry-credentials"
-
-    # Custom controller images
-    helmController:
-      image: my-registry.example.com/fluxcd/helm-controller
-    sourceController:
-      image: my-registry.example.com/fluxcd/source-controller
-
   # Optional: Reconciliation interval
   pollInterval: "5m"
+  # The Flux versions that can be installed
+  versions:
+    - version: "2.8.3"
+      # Flux Helm chart version
+      chartVersion: "2.18.2"
+      # Flux Helm chart location
+      chartUrl: "oci://ghcr.io/fluxcd-community/charts/flux2"
+      # Optional: Secret for private chart registry
+      chartPullSecret: "chart-registry-credentials"
+      # Optional: Custom Helm values
+      values:
+        # Image pull secrets for private registries (will be copied to ManagedControlPlane)
+        imagePullSecrets:
+          - name: "image-registry-credentials"
+
+        # Custom controller images
+        helmController:
+          image: my-registry.example.com/fluxcd/helm-controller
+          tag: v1.5.3
+        sourceController:
+          image: my-registry.example.com/fluxcd/source-controller
+          tag: v1.8.1
 ```
 
 | Field | Type | Description |
 |-------|------|-------------|
-| `spec.chartUrl` | string | OCI registry URL for the Flux Helm chart |
-| `spec.chartPullSecret` | string | Secret name for chart registry authentication |
-| `spec.values` | object | Custom Helm values for Flux deployment |
 | `spec.pollInterval` | duration | How often to reconcile resources (default: 1m) |
+| `spec.versions` | array | The versions of Flux that can be installed |
+
+A version item is defined as follows:
+
+| Field | Type | Description |
+|-------|------|-------------|
+| `version` | string | The Flux version that this item defines |
+| `chartVersion` | string | The Flux Helm chart version to install |
+| `chartUrl` | string | OCI registry URL for the Flux Helm chart |
+| `chartPullSecret` | string | Secret name for chart registry authentication |
+| `values` | object | Custom Helm values for Flux deployment |
 
 ## 🔐 Air-Gapped Environments
 
 For air-gapped or enterprise environments, see the [Image Localization Guide](docs/configuration/image-localization.md).
-
-Quick example:
-
-```yaml
-apiVersion: flux.services.openmcp.cloud/v1alpha1
-kind: ProviderConfig
-metadata:
-  name: flux
-spec:
-  chartUrl: "oci://harbor.internal/charts/flux2"
-  chartPullSecret: "harbor-credentials"
-  values:
-    imagePullSecrets:
-      - name: "harbor-credentials"
-    helmController:
-      image: harbor.internal/fluxcd/helm-controller
-    sourceController:
-      image: harbor.internal/fluxcd/source-controller
-    kustomizeController:
-      image: harbor.internal/fluxcd/kustomize-controller
-    notificationController:
-      image: harbor.internal/fluxcd/notification-controller
-```
 
 ## 🔧 Development Tasks
 
