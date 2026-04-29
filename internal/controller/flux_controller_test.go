@@ -161,7 +161,6 @@ func strPtr(s string) *string {
 	return &s
 }
 
-
 // Fake implementations for testing
 
 var _ flux.ManagedObject = fakeObject{}
