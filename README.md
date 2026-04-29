@@ -136,7 +136,7 @@ Note that any version that should be available to users have to be defined in th
 
 ### ProviderConfig
 
-The `ProviderConfig` resource configures global settings for all Flux deployments.
+The `ProviderConfig` resource configures deployment settings for each version of Flux that the service provider supports.
 
 ```yaml
 apiVersion: flux.services.openmcp.cloud/v1alpha1
@@ -164,8 +164,10 @@ spec:
         # Custom controller images
         helmController:
           image: my-registry.example.com/fluxcd/helm-controller
+          tag: v1.5.3
         sourceController:
           image: my-registry.example.com/fluxcd/source-controller
+          tag: v1.8.1
 ```
 
 | Field | Type | Description |
@@ -186,29 +188,6 @@ A version item is defined as follows:
 ## 🔐 Air-Gapped Environments
 
 For air-gapped or enterprise environments, see the [Image Localization Guide](docs/configuration/image-localization.md).
-
-Quick example:
-
-```yaml
-apiVersion: flux.services.openmcp.cloud/v1alpha1
-kind: ProviderConfig
-metadata:
-  name: flux
-spec:
-  chartUrl: "oci://harbor.internal/charts/flux2"
-  chartPullSecret: "harbor-credentials"
-  values:
-    imagePullSecrets:
-      - name: "harbor-credentials"
-    helmController:
-      image: harbor.internal/fluxcd/helm-controller
-    sourceController:
-      image: harbor.internal/fluxcd/source-controller
-    kustomizeController:
-      image: harbor.internal/fluxcd/kustomize-controller
-    notificationController:
-      image: harbor.internal/fluxcd/notification-controller
-```
 
 ## 🔧 Development Tasks
 

@@ -62,31 +62,34 @@ kind: ProviderConfig
 metadata:
   name: flux-provider-config
 spec:
-  # Flux Helm chart location (private OCI registry)
-  chartUrl: "oci://registry.internal.corp/charts/flux2"
+  versions:
+    - version: "2.8.3"
+      chartVersion: "2.18.2"
+      # Flux Helm chart location (private OCI registry)
+      chartUrl: "oci://registry.internal.corp/charts/flux2"
 
-  # Secret for authenticating to the chart OCI registry
-  # Must exist in the service provider's namespace on the platform cluster
-  # Will be copied to the tenant namespace on the platform cluster
-  chartPullSecret: "chart-registry-credentials"
+      # Secret for authenticating to the chart OCI registry
+      # Must exist in the service provider's namespace on the platform cluster
+      # Will be copied to the tenant namespace on the platform cluster
+      chartPullSecret: "chart-registry-credentials"
 
-  # Helm values for Flux deployment
-  values:
-    # Image pull secrets for Flux controllers
-    # These secrets will be automatically copied from the service provider's namespace
-    # to the flux-system namespace on the ManagedControlPlane
-    imagePullSecrets:
-      - name: "image-registry-credentials"
+      # Helm values for Flux deployment
+      values:
+        # Image pull secrets for Flux controllers
+        # These secrets will be automatically copied from the service provider's namespace
+        # to the flux-system namespace on the ManagedControlPlane
+        imagePullSecrets:
+          - name: "image-registry-credentials"
 
-    # Image location overrides
-    helmController:
-      image: registry.internal.corp/fluxcd/helm-controller
-    sourceController:
-      image: registry.internal.corp/fluxcd/source-controller
-    kustomizeController:
-      image: registry.internal.corp/fluxcd/kustomize-controller
-    notificationController:
-      image: registry.internal.corp/fluxcd/notification-controller
+        # Image location overrides
+        helmController:
+          image: registry.internal.corp/fluxcd/helm-controller
+        sourceController:
+          image: registry.internal.corp/fluxcd/source-controller
+        kustomizeController:
+          image: registry.internal.corp/fluxcd/kustomize-controller
+        notificationController:
+          image: registry.internal.corp/fluxcd/notification-controller
 ```
 
 ### Creating Secrets

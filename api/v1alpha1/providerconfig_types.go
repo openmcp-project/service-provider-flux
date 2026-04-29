@@ -146,6 +146,5 @@ func init() {
 
 // PollInterval returns the poll interval duration from the spec.
 func (o *ProviderConfig) PollInterval() time.Duration {
-	// TODO pollInterval has to be required
 	return o.Spec.PollInterval.Duration
 }

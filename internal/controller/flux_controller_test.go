@@ -544,3 +544,54 @@ func fakeResult(phase apiv1alpha1.InstancePhase, opResult controllerutil.Operati
 		Error:           err,
 	}
 }
+
+func Test_selectFluxVersion(t *testing.T) {
+	tests := []struct {
+		name string // description of this test case
+		// Named input parameters for target function.
+		requestedVersion string
+		pc               *apiv1alpha1.ProviderConfig
+		want             apiv1alpha1.FluxVersion
+		wantErr          bool
+	}{
+		{
+			name:             "version is available",
+			requestedVersion: "v1",
+			pc: &apiv1alpha1.ProviderConfig{
+				Spec: apiv1alpha1.ProviderConfigSpec{
+					Versions: []apiv1alpha1.FluxVersion{{Version: "v1"}, {Version: "v2"}},
+				},
+			},
+			want: apiv1alpha1.FluxVersion{
+				Version: "v1",
+			},
+			wantErr: false,
+		},
+		{
+			name:             "version is not available",
+			requestedVersion: "v3",
+			pc: &apiv1alpha1.ProviderConfig{
+				Spec: apiv1alpha1.ProviderConfigSpec{
+					Versions: []apiv1alpha1.FluxVersion{{Version: "v1"}, {Version: "v2"}},
+				},
+			},
+			want:    apiv1alpha1.FluxVersion{},
+			wantErr: true,
+		},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			got, gotErr := selectFluxVersion(tt.requestedVersion, tt.pc)
+			if gotErr != nil {
+				if !tt.wantErr {
+					t.Errorf("selectFluxVersion() failed: %v", gotErr)
+				}
+				return
+			}
+			if tt.wantErr {
+				t.Fatal("selectFluxVersion() succeeded unexpectedly")
+			}
+			assert.Equal(t, tt.want, got)
+		})
+	}
+}
