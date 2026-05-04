@@ -39,12 +39,28 @@ const (
 	HelmReleaseName = "flux"
 )
 
+// ManageFluxResourcesParams groups all parameters to create the required manage flux resources
+type ManageFluxResourcesParams struct {
+	// Cluster defines where the resources will be created
+	Cluster ManagedCluster
+	// MCPNamespace defines the namespace name that deploy ESO
+	MCPNamespace string
+	// ChartPullSecretName defines the name of the secret copy that will be placed in the Cluster namespace
+	ChartPullSecretName string
+	// Obj is the tenant API object that is being reconciled
+	Obj *apiv1alpha1.Flux
+	// ProviderConfig of the current reconciliation context
+	ProviderConfig *apiv1alpha1.ProviderConfig
+	// ClusterContext of the current reconciliation context
+	ClusterContext spruntime.ClusterContext
+}
+
 // ManageFluxResources configures OCIRepository and HelmRelease on the platform cluster.
-func ManageFluxResources(cluster ManagedCluster, fluxNamespace string, obj *apiv1alpha1.Flux, pc *apiv1alpha1.ProviderConfig, cc spruntime.ClusterContext) {
+func ManageFluxResources(p ManageFluxResourcesParams) {
 	ociRepo := NewManagedObject(&sourcev1.OCIRepository{
 		ObjectMeta: metav1.ObjectMeta{
 			Name:      OCIRepositoryName,
-			Namespace: cluster.GetDefaultNamespace(),
+			Namespace: p.Cluster.GetDefaultNamespace(),
 		},
 	}, ManagedObjectContext{
 		ReconcileFunc: func(_ context.Context, o client.Object) error {
@@ -53,15 +69,15 @@ func ManageFluxResources(cluster ManagedCluster, fluxNamespace string, obj *apiv
 				return fmt.Errorf("expected *sourcev1.OCIRepository, got %T", o)
 			}
 			ociRepo.Spec = sourcev1.OCIRepositorySpec{
-				Interval: metav1.Duration{Duration: pc.PollInterval()},
-				URL:      *pc.Spec.ChartURL,
+				Interval: metav1.Duration{Duration: p.ProviderConfig.PollInterval()},
+				URL:      *p.ProviderConfig.Spec.ChartURL,
 				Reference: &sourcev1.OCIRepositoryRef{
-					Tag: obj.Spec.Version,
+					Tag: p.Obj.Spec.Version,
 				},
 			}
-			if pc.Spec.ChartPullSecret != "" {
+			if p.ChartPullSecretName != "" {
 				ociRepo.Spec.SecretRef = &meta.LocalObjectReference{
-					Name: pc.Spec.ChartPullSecret,
+					Name: p.ChartPullSecretName,
 				}
 			}
 			return nil
@@ -70,12 +86,12 @@ func ManageFluxResources(cluster ManagedCluster, fluxNamespace string, obj *apiv
 		DeletionPolicy: Delete,
 		StatusFunc:     FluxStatus,
 	})
-	cluster.AddObject(ociRepo)
+	p.Cluster.AddObject(ociRepo)
 
 	helmRelease := NewManagedObject(&helmv2.HelmRelease{
 		ObjectMeta: metav1.ObjectMeta{
 			Name:      HelmReleaseName,
-			Namespace: cluster.GetDefaultNamespace(),
+			Namespace: p.Cluster.GetDefaultNamespace(),
 		},
 	}, ManagedObjectContext{
 		ReconcileFunc: func(_ context.Context, o client.Object) error {
@@ -84,15 +100,15 @@ func ManageFluxResources(cluster ManagedCluster, fluxNamespace string, obj *apiv
 				return fmt.Errorf("expected *helmv2.HelmRelease, got %T", o)
 			}
 			helmRelease.Spec = helmv2.HelmReleaseSpec{
-				Interval: metav1.Duration{Duration: pc.PollInterval()},
+				Interval: metav1.Duration{Duration: p.ProviderConfig.PollInterval()},
 				ChartRef: &helmv2.CrossNamespaceSourceReference{
 					Kind:      "OCIRepository",
 					Name:      OCIRepositoryName,
-					Namespace: cluster.GetDefaultNamespace(),
+					Namespace: p.Cluster.GetDefaultNamespace(),
 				},
 				KubeConfig: &meta.KubeConfigReference{
 					SecretRef: &meta.SecretKeyReference{
-						Name: cc.MCPAccessSecretKey.Name,
+						Name: p.ClusterContext.MCPAccessSecretKey.Name,
 						Key:  "kubeconfig",
 					},
 				},
@@ -114,9 +130,9 @@ func ManageFluxResources(cluster ManagedCluster, fluxNamespace string, obj *apiv
 					KeepHistory: false,
 					Timeout:     &metav1.Duration{Duration: 5 * time.Minute},
 				},
-				Values:           pc.Spec.Values,
-				TargetNamespace:  fluxNamespace,
-				StorageNamespace: fluxNamespace,
+				Values:           p.ProviderConfig.Spec.Values,
+				TargetNamespace:  p.MCPNamespace,
+				StorageNamespace: p.MCPNamespace,
 			}
 			return nil
 		},
@@ -124,7 +140,7 @@ func ManageFluxResources(cluster ManagedCluster, fluxNamespace string, obj *apiv
 		DeletionPolicy: Delete,
 		StatusFunc:     FluxStatus,
 	})
-	cluster.AddObject(helmRelease)
+	p.Cluster.AddObject(helmRelease)
 }
 
 // FluxStatus indicates whether the given Flux object is in phase terminating, pending or ready.
