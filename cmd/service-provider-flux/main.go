@@ -21,6 +21,7 @@ import (
 	"crypto/tls"
 	"fmt"
 	"os"
+	"strings"
 	"time"
 
 	helmv2 "github.com/fluxcd/helm-controller/api/v2"
@@ -47,6 +48,7 @@ import (
 	clientgoscheme "k8s.io/client-go/kubernetes/scheme"
 	_ "k8s.io/client-go/plugin/pkg/client/auth"
 	ctrl "sigs.k8s.io/controller-runtime"
+	"sigs.k8s.io/controller-runtime/pkg/client"
 	"sigs.k8s.io/controller-runtime/pkg/event"
 	"sigs.k8s.io/controller-runtime/pkg/healthz"
 	"sigs.k8s.io/controller-runtime/pkg/metrics/filters"
@@ -277,6 +279,9 @@ func main() {
 	// run (sp controller deployment)
 	onboardingCluster, err := clusterAccessManager.CreateAndWaitForCluster(ctx, "onboarding-run",
 		clustersv1alpha1.PURPOSE_ONBOARDING, onboardingScheme, adminPermissions)
+	if debugEnabled() {
+		onboardingCluster = patchOnboardingClient(ctx, platformCluster, onboardingCluster)
+	}
 	if err != nil {
 		setupLog.Error(err, "Failed to create and wait for onboarding cluster access")
 	}
@@ -310,6 +315,10 @@ func main() {
 		os.Exit(1)
 	}
 	providerConfigUpdates := make(chan event.GenericEvent)
+	clusterAccessReconciler := clusteraccess.NewClusterAccessReconciler(platformCluster.Client(), "Flux")
+	if debugEnabled() {
+		clusterAccessReconciler = spruntime.NewLocalAccessReconciler(clusterAccessReconciler)
+	}
 	spr := spruntime.NewSPReconciler[*fluxsv1alpha1.Flux, *fluxsv1alpha1.ProviderConfig](
 		func() *fluxsv1alpha1.Flux { return &fluxsv1alpha1.Flux{} },
 	).
@@ -320,7 +329,7 @@ func main() {
 			PlatformCluster:   platformCluster,
 			PodNamespace:      podNamespace,
 		}).
-		WithClusterAccessReconciler(clusteraccess.NewClusterAccessReconciler(platformCluster.Client(), "Flux").
+		WithClusterAccessReconciler(clusterAccessReconciler.
 			WithMCPScheme(mcpScheme).
 			WithRetryInterval(10 * time.Second).
 			WithMCPPermissions(adminPermissions).WithMCPRoleRefs([]common.RoleRef{
@@ -361,6 +370,20 @@ func main() {
 	}
 }
 
+func patchOnboardingClient(ctx context.Context, platformCluster *clusters.Cluster, onboardingCluster *clusters.Cluster) *clusters.Cluster {
+	onboardingAr := &clustersv1alpha1.AccessRequest{
+		ObjectMeta: metav1.ObjectMeta{
+			Name:      "flux.flux.services.openmcp.cloud--onboarding-run",
+			Namespace: "openmcp-system",
+		},
+	}
+	if err := platformCluster.Client().Get(ctx, client.ObjectKeyFromObject(onboardingAr), onboardingAr); err != nil {
+		panic(err)
+	}
+	onboardingCluster = spruntime.MustPatchClusterClient(ctx, onboardingAr, onboardingCluster)
+	return onboardingCluster
+}
+
 // initializePlatformCluster initializes the platform cluster with the necessary REST config and client.
 func initializePlatformCluster() (*clusters.Cluster, error) {
 	platformCluster := clusters.New("platform")
@@ -372,4 +395,9 @@ func initializePlatformCluster() (*clusters.Cluster, error) {
 		return nil, err
 	}
 	return platformCluster, nil
+}
+
+func debugEnabled() bool {
+	v := strings.ToLower(os.Getenv("DEV_DEBUG"))
+	return v == "1" || v == "true"
 }
