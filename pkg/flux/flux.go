@@ -70,11 +70,15 @@ func ManageFluxResources(p ManageFluxResourcesParams) {
 			if !ok {
 				return fmt.Errorf("expected *sourcev1.OCIRepository, got %T", o)
 			}
+			if p.RequestedVersion.ChartURL == nil {
+				// this should never happen as long as defaulting works properly
+				return fmt.Errorf("missing ChartURL definition for Flux version %s", p.RequestedVersion.Version)
+			}
 			ociRepo.Spec = sourcev1.OCIRepositorySpec{
 				Interval: metav1.Duration{Duration: p.ProviderConfig.PollInterval()},
 				URL:      *p.RequestedVersion.ChartURL,
 				Reference: &sourcev1.OCIRepositoryRef{
-					Tag: p.RequestedVersion.CharVersion,
+					Tag: p.RequestedVersion.ChartVersion,
 				},
 			}
 			if p.ChartPullSecretName != "" {
