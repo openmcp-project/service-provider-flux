@@ -53,6 +53,8 @@ type ManageFluxResourcesParams struct {
 	ProviderConfig *apiv1alpha1.ProviderConfig
 	// ClusterContext of the current reconciliation context
 	ClusterContext spruntime.ClusterContext
+	// RequestedVersion is the version of flux that a user requested through the onboarding API
+	RequestedVersion apiv1alpha1.FluxVersion
 }
 
 // ManageFluxResources configures OCIRepository and HelmRelease on the platform cluster.
@@ -68,11 +70,15 @@ func ManageFluxResources(p ManageFluxResourcesParams) {
 			if !ok {
 				return fmt.Errorf("expected *sourcev1.OCIRepository, got %T", o)
 			}
+			if p.RequestedVersion.ChartURL == nil {
+				// this should never happen as long as defaulting works properly
+				return fmt.Errorf("missing ChartURL definition for Flux version %s", p.RequestedVersion.Version)
+			}
 			ociRepo.Spec = sourcev1.OCIRepositorySpec{
 				Interval: metav1.Duration{Duration: p.ProviderConfig.PollInterval()},
-				URL:      *p.ProviderConfig.Spec.ChartURL,
+				URL:      *p.RequestedVersion.ChartURL,
 				Reference: &sourcev1.OCIRepositoryRef{
-					Tag: p.Obj.Spec.Version,
+					Tag: p.RequestedVersion.ChartVersion,
 				},
 			}
 			if p.ChartPullSecretName != "" {
@@ -130,7 +136,10 @@ func ManageFluxResources(p ManageFluxResourcesParams) {
 					KeepHistory: false,
 					Timeout:     &metav1.Duration{Duration: 5 * time.Minute},
 				},
-				Values:           p.ProviderConfig.Spec.Values,
+				DriftDetection: &helmv2.DriftDetection{
+					Mode: helmv2.DriftDetectionEnabled,
+				},
+				Values:           p.RequestedVersion.Values,
 				TargetNamespace:  p.MCPNamespace,
 				StorageNamespace: p.MCPNamespace,
 			}

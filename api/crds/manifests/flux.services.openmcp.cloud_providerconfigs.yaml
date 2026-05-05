@@ -41,48 +41,72 @@ spec:
           spec:
             description: spec defines the desired state of ProviderConfig
             properties:
-              chartPullSecret:
-                description: |-
-                  ChartPullSecret is the name of a Secret in the service provider's namespace
-                  containing credentials to pull the Helm chart from a private OCI registry.
-                  The secret will be copied to the tenant namespace on the platform cluster
-                  and referenced by the OCIRepository.
-                  The secret must be of type kubernetes.io/dockerconfigjson.
-                type: string
-              chartUrl:
-                default: oci://ghcr.io/fluxcd-community/charts/flux2
-                description: ChartURL is the OCI registry URL for the Flux Helm chart.
-                type: string
               pollInterval:
                 default: 1m
                 description: PollInterval determines how often to reconcile resources
                   to prevent drift.
                 format: duration
                 type: string
-              values:
-                description: |-
-                  Values contains Helm values to override defaults for the Flux deployment.
-                  This field supports all configuration options from the Flux community Helm chart.
-                  See https://github.com/fluxcd-community/helm-charts/tree/main/charts/flux2 for available options.
-
-                  Image pull secrets for Flux controllers should be specified via values.imagePullSecrets.
-                  Any secrets referenced in imagePullSecrets will be automatically copied from the service
-                  provider's namespace to the flux-system namespace on the ManagedControlPlane.
-
-                  Common use cases include:
-                  - Image localization for air-gapped environments
-                  - Resource limits and requests
-                  - Controller-specific configurations
-
-                  Example for air-gapped environments:
+              versions:
+                description: Versions specify the valid inputs for the Flux.Spec.Version
+                  field.
+                items:
+                  description: FluxVersion defines a version of Flux that can be installed
+                  properties:
+                    chartPullSecret:
+                      description: |-
+                        ChartPullSecret is the name of a Secret in the service provider's namespace
+                        containing credentials to pull the Helm chart from a private OCI registry.
+                        The secret will be copied to the tenant namespace on the platform cluster
+                        and referenced by the OCIRepository.
+                        The secret must be of type kubernetes.io/dockerconfigjson.
+                      type: string
+                    chartUrl:
+                      default: oci://ghcr.io/fluxcd-community/charts/flux2
+                      description: ChartURL is the OCI registry URL for the Flux Helm
+                        chart.
+                      type: string
+                    chartVersion:
+                      description: ChartVersion is the version of the Helm chart to
+                        install
+                      type: string
                     values:
-                      imagePullSecrets:
-                        - name: my-registry-credentials
-                      helmController:
-                        image: my-registry.example.com/fluxcd/helm-controller
-                      sourceController:
-                        image: my-registry.example.com/fluxcd/source-controller
-                x-kubernetes-preserve-unknown-fields: true
+                      description: |-
+                        Values contains Helm values to override defaults for the Flux deployment.
+                        This field supports all configuration options from the Flux community Helm chart.
+                        See https://github.com/fluxcd-community/helm-charts/tree/main/charts/flux2 for available options.
+
+                        Image pull secrets for Flux controllers should be specified via values.imagePullSecrets.
+                        Any secrets referenced in imagePullSecrets will be automatically copied from the service
+                        provider's namespace to the flux-system namespace on the ManagedControlPlane.
+
+                        Common use cases include:
+                        - Image localization for air-gapped environments
+                        - Resource limits and requests
+                        - Controller-specific configurations
+
+                        Example for air-gapped environments:
+                          values:
+                            imagePullSecrets:
+                              - name: my-registry-credentials
+                            helmController:
+                              image: my-registry.example.com/fluxcd/helm-controller
+                            sourceController:
+                              image: my-registry.example.com/fluxcd/source-controller
+                      x-kubernetes-preserve-unknown-fields: true
+                    version:
+                      description: |-
+                        Version is the Flux version to install.
+                        This version is compared with Flux.Spec.Version to define available versions
+                        and the deployment artifacts of a version.
+                      type: string
+                  required:
+                  - chartVersion
+                  - version
+                  type: object
+                type: array
+            required:
+            - versions
             type: object
           status:
             description: status defines the observed state of ProviderConfig
