@@ -19,7 +19,10 @@ import (
 	"sigs.k8s.io/controller-runtime/pkg/client"
 )
 
-const labelManagedBy = "flux.services.openmcp.cloud/managed-by"
+const (
+	labelManagedBy           = "flux.services.openmcp.cloud/managed-by"
+	labelServiceProviderFlux = "service-provider-flux"
+)
 
 // SetManagedBy sets the managed-by label on the given object.
 func SetManagedBy(obj client.Object) {
@@ -27,7 +30,7 @@ func SetManagedBy(obj client.Object) {
 	if labels == nil {
 		labels = make(map[string]string)
 	}
-	labels[labelManagedBy] = "service-provider-flux"
+	labels[labelManagedBy] = labelServiceProviderFlux
 	obj.SetLabels(labels)
 }
 

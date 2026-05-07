@@ -51,7 +51,7 @@ func (r *FluxReconciler) CreateOrUpdate(ctx context.Context, obj *apiv1alpha1.Fl
 	spruntime.StatusProgressing(obj, "Reconciling", "Reconcile in progress")
 	mgr, err := r.createObjectManager(obj, pc, clusters)
 	if err != nil {
-		spruntime.StatusProgressing(obj, "ReconcileError", err.Error())
+		spruntime.StatusProgressing(obj, apiv1alpha1.ConditionReasonError, err.Error())
 		return ctrl.Result{}, err
 	}
 	results := mgr.Apply(ctx)
@@ -62,8 +62,13 @@ func (r *FluxReconciler) CreateOrUpdate(ctx context.Context, obj *apiv1alpha1.Fl
 	}
 	if resultContainsErrors {
 		resultWithErrors := errors.New("resources contain reconcile errors")
-		spruntime.StatusProgressing(obj, "ReconcileError", resultWithErrors.Error())
+		spruntime.StatusProgressing(obj, apiv1alpha1.ConditionReasonError, resultWithErrors.Error())
 		return ctrl.Result{}, resultWithErrors
+	}
+	if err := mgr.Cleanup(ctx); err != nil {
+		resourceCleanupError := errors.New("resource cleanup failed")
+		spruntime.StatusProgressing(obj, apiv1alpha1.ConditionReasonError, resourceCleanupError.Error())
+		return ctrl.Result{}, resourceCleanupError
 	}
 	return ctrl.Result{}, nil
 }
@@ -73,7 +78,7 @@ func (r *FluxReconciler) Delete(ctx context.Context, obj *apiv1alpha1.Flux, pc *
 	spruntime.StatusTerminating(obj)
 	mgr, err := r.createObjectManager(obj, pc, clusters)
 	if err != nil {
-		spruntime.StatusProgressing(obj, "ReconcileError", err.Error())
+		spruntime.StatusProgressing(obj, apiv1alpha1.ConditionReasonError, err.Error())
 		return ctrl.Result{}, err
 	}
 	results := mgr.Delete(ctx)
@@ -84,7 +89,7 @@ func (r *FluxReconciler) Delete(ctx context.Context, obj *apiv1alpha1.Flux, pc *
 	}
 	if resultContainsErrors {
 		resultWithErrors := errors.New("resources contain reconcile errors")
-		spruntime.StatusProgressing(obj, "ReconcileError", resultWithErrors.Error())
+		spruntime.StatusProgressing(obj, apiv1alpha1.ConditionReasonError, resultWithErrors.Error())
 		return ctrl.Result{}, resultWithErrors
 	}
 	return ctrl.Result{
@@ -159,6 +164,17 @@ func (r *FluxReconciler) createObjectManager(obj *apiv1alpha1.Flux, pc *apiv1alp
 	mgr := flux.NewManager()
 	mgr.AddCluster(mcpCluster)
 	mgr.AddCluster(platformCluster)
+
+	// create cleaners to remove orphaned pull secret copies
+	platformCleaner := flux.NewSecretCleaner(platformCluster.GetClient(), tenantNamespace, []corev1.LocalObjectReference{
+		{
+			Name: prefixedChartPullSecret,
+		},
+	})
+	controlPlaneCleaner := flux.NewSecretCleaner(mcpCluster.GetClient(), fluxNamespace, helmValues.ImagePullSecrets)
+
+	mgr.AddCleaner(platformCleaner)
+	mgr.AddCleaner(controlPlaneCleaner)
 
 	return mgr, nil
 }

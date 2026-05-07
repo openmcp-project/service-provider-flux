@@ -40,6 +40,9 @@ const (
 	ManagedControlPlane ResourceLocation = "ManagedControlPlane"
 	PlatformCluster     ResourceLocation = "PlatformCluster"
 	WorkloadCluster     ResourceLocation = "WorkloadCluster"
+
+	ConditionReasonSuccess = "ReconcileSucceeded"
+	ConditionReasonError   = "ReconcileFailed"
 )
 
 // FluxSpec defines the desired state of Flux

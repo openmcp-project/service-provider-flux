@@ -16,12 +16,14 @@ package flux
 import (
 	"context"
 	"fmt"
+	"slices"
 
 	ctrlutils "github.com/openmcp-project/controller-utils/pkg/controller"
 	openmcpresources "github.com/openmcp-project/controller-utils/pkg/resources"
 	corev1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"sigs.k8s.io/controller-runtime/pkg/client"
+	"sigs.k8s.io/controller-runtime/pkg/log"
 
 	apiv1alpha1 "github.com/openmcp-project/service-provider-flux/api/v1alpha1"
 )
@@ -107,4 +109,42 @@ func SecretStatus(o client.Object, rl apiv1alpha1.ResourceLocation) Status {
 // and a hash suffix appended for uniqueness via ShortenToXCharacters.
 func PrefixSecretName(secretName string) (string, error) {
 	return ctrlutils.ShortenToXCharacters(fmt.Sprintf("%s%s", secretNamePrefix, secretName), ctrlutils.K8sMaxNameLength)
+}
+
+var _ OrphanCleaner = &secretCleaner{}
+
+type secretCleaner struct {
+	client        client.Client
+	namespace     string
+	wantedSecrets []corev1.LocalObjectReference
+}
+
+// NewSecretCleaner removes redundant pull secrets in the given target namespace
+// by removing any secret labeled as managed by sp-flux that is not in wantedSecrets
+func NewSecretCleaner(c client.Client, namespace string, wantedSecrets []corev1.LocalObjectReference) OrphanCleaner {
+	return &secretCleaner{
+		client:        c,
+		namespace:     namespace,
+		wantedSecrets: wantedSecrets,
+	}
+}
+
+func (c *secretCleaner) Cleanup(ctx context.Context) error {
+	secretCopies := &corev1.SecretList{}
+	if err := c.client.List(ctx, secretCopies,
+		client.InNamespace(c.namespace),
+		client.MatchingLabels{labelManagedBy: labelServiceProviderFlux},
+	); err != nil {
+		log.FromContext(ctx).Error(err, "failed to list secrets for orphan cleanup")
+		return err
+	}
+	for _, secret := range secretCopies.Items {
+		if !slices.ContainsFunc(c.wantedSecrets, func(ref corev1.LocalObjectReference) bool { return secret.Name == ref.Name }) {
+			if err := c.client.Delete(ctx, &secret); err != nil {
+				log.FromContext(ctx).Error(err, "failed to delete orphaned pull secret")
+				return err
+			}
+		}
+	}
+	return nil
 }
