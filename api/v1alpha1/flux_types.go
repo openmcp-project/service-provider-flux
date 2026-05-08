@@ -41,7 +41,6 @@ const (
 	PlatformCluster     ResourceLocation = "PlatformCluster"
 	WorkloadCluster     ResourceLocation = "WorkloadCluster"
 
-	ConditionReasonSuccess = "ReconcileSucceeded"
 	ConditionReasonError   = "ReconcileFailed"
 )
 
