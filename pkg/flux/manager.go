@@ -77,12 +77,12 @@ func (m *managerImpl) Delete(ctx context.Context) []Result {
 	return m.reconcileObjects(ctx, true)
 }
 
-// WithOrphanCleanup sets up the required state to execute CleanupOrphanedResources
+// AddCleaner adds a cleaner to a Manager.
 func (m *managerImpl) AddCleaner(cleaner OrphanCleaner) {
 	m.cleaners = append(m.cleaners, cleaner)
 }
 
-// Cleanup removes any redundant resources like secret copies that are no longer part of the desired state
+// Cleanup removes any redundant resources like secret copies that are no longer part of the desired state.
 func (m *managerImpl) Cleanup(ctx context.Context) error {
 	for _, c := range m.cleaners {
 		if err := c.Cleanup(ctx); err != nil {

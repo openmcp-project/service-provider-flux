@@ -120,7 +120,7 @@ type secretCleaner struct {
 }
 
 // NewSecretCleaner removes redundant pull secrets in the given target namespace
-// by removing any secret labeled as managed by sp-flux that is not in wantedSecrets
+// by removing any secret labeled as managed by sp-flux that is not in wantedSecrets.
 func NewSecretCleaner(c client.Client, namespace string, wantedSecrets []corev1.LocalObjectReference) OrphanCleaner {
 	return &secretCleaner{
 		client:        c,
