@@ -41,7 +41,7 @@ const (
 	PlatformCluster     ResourceLocation = "PlatformCluster"
 	WorkloadCluster     ResourceLocation = "WorkloadCluster"
 
-	ConditionReasonError = "ReconcileFailed"
+	ConditionReasonError = "ReconcileError"
 )
 
 // FluxSpec defines the desired state of Flux
