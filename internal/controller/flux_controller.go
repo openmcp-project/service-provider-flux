@@ -207,7 +207,7 @@ func resultsToResources(ctx context.Context, results []flux.Result) ([]apiv1alph
 		})
 		if res.Error != nil {
 			containsError = true
-			l.Error(res.Error, "objectID", flux.ObjectID(obj))
+			l.Error(res.Error, fmt.Sprintf("objectID (%s)", flux.ObjectID(obj)))
 		}
 	}
 	return resources, containsError
