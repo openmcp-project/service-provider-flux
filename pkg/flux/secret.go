@@ -15,6 +15,7 @@ package flux
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"slices"
 
@@ -129,22 +130,44 @@ func NewSecretCleaner(c client.Client, namespace string, secretsToKeep []corev1.
 	}
 }
 
-func (c *secretCleaner) Cleanup(ctx context.Context) error {
+func (c *secretCleaner) Cleanup(ctx context.Context) ([]Result, error) {
+	results := []Result{}
 	secretCopies := &corev1.SecretList{}
 	if err := c.client.List(ctx, secretCopies,
 		client.InNamespace(c.namespace),
 		client.MatchingLabels{LabelManagedBy: labelServiceProviderFlux},
 	); err != nil {
 		log.FromContext(ctx).Error(err, "failed to list secrets for orphan cleanup")
-		return err
+		return nil, errors.New("secret cleanup failed")
 	}
 	for _, secret := range secretCopies.Items {
 		if !slices.ContainsFunc(c.secretsToKeep, func(ref corev1.LocalObjectReference) bool { return secret.Name == ref.Name }) {
 			if err := c.client.Delete(ctx, &secret); client.IgnoreNotFound(err) != nil {
-				log.FromContext(ctx).Error(err, "failed to delete orphaned pull secret")
-				return err
+				results = append(results, orphanCleanupErrorResult(&secret, err))
 			}
 		}
 	}
-	return nil
+	return results, nil
+}
+
+func orphanCleanupErrorResult(obj *corev1.Secret, err error) Result {
+	return Result{
+		Object: &managedObject{
+			object:         obj,
+			reconcileFunc:  nil,
+			statusFunc:     SecretCleanupErrorStatus,
+			deletionPolicy: Delete,
+		},
+		OperationResult: OperationResultDeletionRequested,
+		Error:           err,
+	}
+}
+
+// SecretCleanupErrorStatus is required to indicate errors on secret cleanup
+func SecretCleanupErrorStatus(_ client.Object, rl apiv1alpha1.ResourceLocation) Status {
+	return Status{
+		Phase:    apiv1alpha1.Terminating,
+		Message:  "Secret cleanup failed",
+		Location: rl,
+	}
 }

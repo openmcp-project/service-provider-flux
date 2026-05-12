@@ -87,7 +87,8 @@ func TestManagePullSecrets(t *testing.T) {
 			// Apply managed objects
 			mgr := NewManager()
 			mgr.AddCluster(tt.targetCluster)
-			results := mgr.Apply(context.Background())
+			results, gotErr := mgr.Apply(context.Background())
+			require.NoError(t, gotErr)
 			for _, r := range results {
 				require.NoError(t, r.Error)
 			}
@@ -137,7 +138,8 @@ func Test_secretCleaner_Cleanup(t *testing.T) {
 		targetNamespace string
 		secretsToKeep   []corev1.LocalObjectReference
 		want            []corev1.Secret
-		wantErr         bool
+		wantResults     bool // []results indicate individual delete error
+		wantErr         bool // error indicate general errors that are not related to individual objects
 	}{
 		{
 			name:            "only managed secrets are deleted",
@@ -200,16 +202,23 @@ func Test_secretCleaner_Cleanup(t *testing.T) {
 			targetNamespace: "flux-system",
 			secretsToKeep:   []corev1.LocalObjectReference{},
 			want:            []corev1.Secret{},
-			wantErr:         true,
+			wantErr:         false,
+			wantResults:     true,
 		},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			c := NewSecretCleaner(tt.client, tt.targetNamespace, tt.secretsToKeep)
-			gotErr := c.Cleanup(context.Background())
+			results, gotErr := c.Cleanup(context.Background())
 			if gotErr != nil {
 				if !tt.wantErr {
 					t.Errorf("Cleanup() failed: %v", gotErr)
+				}
+				return
+			}
+			if len(results) > 0 {
+				if !tt.wantResults {
+					t.Errorf("Cleanup() failed %v", results)
 				}
 				return
 			}

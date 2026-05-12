@@ -54,21 +54,16 @@ func (r *FluxReconciler) CreateOrUpdate(ctx context.Context, obj *apiv1alpha1.Fl
 		spruntime.StatusProgressing(obj, apiv1alpha1.ConditionReasonError, err.Error())
 		return ctrl.Result{}, err
 	}
-	results := mgr.Apply(ctx)
+	results, err := mgr.Apply(ctx)
 	managedResources, resultContainsErrors := resultsToResources(ctx, results)
 	obj.Status.Resources = managedResources
-	if allResourcesReady(managedResources) {
+	if allResourcesReady(managedResources) && err == nil {
 		spruntime.StatusReady(obj)
 	}
-	if resultContainsErrors {
-		resultWithErrors := errors.New("resources contain reconcile errors")
+	if resultContainsErrors || err != nil {
+		resultWithErrors := errors.Join(errors.New("createOrUpdate error"), err)
 		spruntime.StatusProgressing(obj, apiv1alpha1.ConditionReasonError, resultWithErrors.Error())
 		return ctrl.Result{}, resultWithErrors
-	}
-	if err := mgr.Cleanup(ctx); err != nil {
-		resourceCleanupError := fmt.Errorf("resource cleanup failed: %w", err)
-		spruntime.StatusProgressing(obj, apiv1alpha1.ConditionReasonError, resourceCleanupError.Error())
-		return ctrl.Result{}, resourceCleanupError
 	}
 	return ctrl.Result{}, nil
 }
@@ -81,14 +76,14 @@ func (r *FluxReconciler) Delete(ctx context.Context, obj *apiv1alpha1.Flux, pc *
 		spruntime.StatusProgressing(obj, apiv1alpha1.ConditionReasonError, err.Error())
 		return ctrl.Result{}, err
 	}
-	results := mgr.Delete(ctx)
+	results, err := mgr.Delete(ctx)
 	managedResources, resultContainsErrors := resultsToResources(ctx, results)
 	obj.Status.Resources = managedResources
-	if flux.AllDeleted(results) {
+	if flux.AllDeleted(results) && err == nil {
 		return ctrl.Result{}, nil
 	}
-	if resultContainsErrors {
-		resultWithErrors := errors.New("resources contain reconcile errors")
+	if resultContainsErrors || err != nil {
+		resultWithErrors := errors.Join(errors.New("delete error"), err)
 		spruntime.StatusProgressing(obj, apiv1alpha1.ConditionReasonError, resultWithErrors.Error())
 		return ctrl.Result{}, resultWithErrors
 	}

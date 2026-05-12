@@ -461,7 +461,8 @@ func TestManager(t *testing.T) {
 		mgr := NewManager()
 		mgr.AddCluster(cluster)
 
-		results := mgr.Apply(context.Background())
+		results, gotErr := mgr.Apply(context.Background())
+		assert.NoError(t, gotErr)
 		assert.Len(t, results, 1)
 		assert.NoError(t, results[0].Error)
 
@@ -499,7 +500,8 @@ func TestManager(t *testing.T) {
 		mgr := NewManager()
 		mgr.AddCluster(cluster)
 
-		results := mgr.Delete(context.Background())
+		results, err := mgr.Delete(context.Background())
+		assert.NoError(t, err)
 		assert.Len(t, results, 1)
 		assert.NoError(t, results[0].Error)
 		// First delete call returns deletionRequested since object exists
@@ -533,7 +535,8 @@ func TestManager(t *testing.T) {
 		mgr := NewManager()
 		mgr.AddCluster(cluster)
 
-		results := mgr.Delete(context.Background())
+		results, gotErr := mgr.Delete(context.Background())
+		assert.NoError(t, gotErr)
 		assert.Len(t, results, 1)
 		assert.NoError(t, results[0].Error)
 		assert.Equal(t, OperationResultOrphaned, results[0].OperationResult)
