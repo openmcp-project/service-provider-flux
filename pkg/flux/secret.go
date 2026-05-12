@@ -116,16 +116,16 @@ var _ OrphanCleaner = &secretCleaner{}
 type secretCleaner struct {
 	client        client.Client
 	namespace     string
-	wantedSecrets []corev1.LocalObjectReference
+	secretsToKeep []corev1.LocalObjectReference
 }
 
 // NewSecretCleaner removes redundant pull secrets in the given target namespace
 // by removing any secret labeled as managed by sp-flux that is not in wantedSecrets.
-func NewSecretCleaner(c client.Client, namespace string, wantedSecrets []corev1.LocalObjectReference) OrphanCleaner {
+func NewSecretCleaner(c client.Client, namespace string, secretsToKeep []corev1.LocalObjectReference) OrphanCleaner {
 	return &secretCleaner{
 		client:        c,
 		namespace:     namespace,
-		wantedSecrets: wantedSecrets,
+		secretsToKeep: secretsToKeep,
 	}
 }
 
@@ -133,14 +133,14 @@ func (c *secretCleaner) Cleanup(ctx context.Context) error {
 	secretCopies := &corev1.SecretList{}
 	if err := c.client.List(ctx, secretCopies,
 		client.InNamespace(c.namespace),
-		client.MatchingLabels{labelManagedBy: labelServiceProviderFlux},
+		client.MatchingLabels{LabelManagedBy: labelServiceProviderFlux},
 	); err != nil {
 		log.FromContext(ctx).Error(err, "failed to list secrets for orphan cleanup")
 		return err
 	}
 	for _, secret := range secretCopies.Items {
-		if !slices.ContainsFunc(c.wantedSecrets, func(ref corev1.LocalObjectReference) bool { return secret.Name == ref.Name }) {
-			if err := c.client.Delete(ctx, &secret); err != nil {
+		if !slices.ContainsFunc(c.secretsToKeep, func(ref corev1.LocalObjectReference) bool { return secret.Name == ref.Name }) {
+			if err := c.client.Delete(ctx, &secret); client.IgnoreNotFound(err) != nil {
 				log.FromContext(ctx).Error(err, "failed to delete orphaned pull secret")
 				return err
 			}

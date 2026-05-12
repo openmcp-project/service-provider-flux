@@ -135,7 +135,7 @@ func Test_secretCleaner_Cleanup(t *testing.T) {
 		name            string // description of this test case
 		client          client.Client
 		targetNamespace string
-		wantedSecrets   []corev1.LocalObjectReference
+		secretsToKeep   []corev1.LocalObjectReference
 		want            []corev1.Secret
 		wantErr         bool
 	}{
@@ -146,7 +146,7 @@ func Test_secretCleaner_Cleanup(t *testing.T) {
 				testSecret("a", "flux-system", true),
 				testSecret("b", "flux-system", false),
 			}),
-			wantedSecrets: []corev1.LocalObjectReference{},
+			secretsToKeep: []corev1.LocalObjectReference{},
 			want: []corev1.Secret{
 				*testSecret("b", "flux-system", false),
 			},
@@ -159,7 +159,7 @@ func Test_secretCleaner_Cleanup(t *testing.T) {
 				testSecret("a", "flux-system", true),
 				testSecret("b", "flux-system", false),
 			}),
-			wantedSecrets: []corev1.LocalObjectReference{},
+			secretsToKeep: []corev1.LocalObjectReference{},
 			want: []corev1.Secret{
 				*testSecret("a", "flux-system", true),
 				*testSecret("b", "flux-system", false),
@@ -173,7 +173,7 @@ func Test_secretCleaner_Cleanup(t *testing.T) {
 				testSecret("a", "flux-system", true),
 				testSecret("b", "flux-system", false),
 			}),
-			wantedSecrets: []corev1.LocalObjectReference{
+			secretsToKeep: []corev1.LocalObjectReference{
 				{
 					Name: "a",
 				},
@@ -188,7 +188,7 @@ func Test_secretCleaner_Cleanup(t *testing.T) {
 			name:            "error is returned when list fails",
 			client:          listErrorClient{},
 			targetNamespace: "flux-system",
-			wantedSecrets:   []corev1.LocalObjectReference{},
+			secretsToKeep:   []corev1.LocalObjectReference{},
 			want:            []corev1.Secret{},
 			wantErr:         true,
 		},
@@ -198,14 +198,14 @@ func Test_secretCleaner_Cleanup(t *testing.T) {
 				fakeSecret: *testSecret("a", "flux-system", true),
 			},
 			targetNamespace: "flux-system",
-			wantedSecrets:   []corev1.LocalObjectReference{},
+			secretsToKeep:   []corev1.LocalObjectReference{},
 			want:            []corev1.Secret{},
 			wantErr:         true,
 		},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			c := NewSecretCleaner(tt.client, tt.targetNamespace, tt.wantedSecrets)
+			c := NewSecretCleaner(tt.client, tt.targetNamespace, tt.secretsToKeep)
 			gotErr := c.Cleanup(context.Background())
 			if gotErr != nil {
 				if !tt.wantErr {
@@ -227,7 +227,7 @@ func Test_secretCleaner_Cleanup(t *testing.T) {
 func testSecret(name, namespace string, managedByFlux bool) *corev1.Secret {
 	labels := map[string]string{}
 	if managedByFlux {
-		labels[labelManagedBy] = labelServiceProviderFlux
+		labels[LabelManagedBy] = labelServiceProviderFlux
 	}
 	return &corev1.Secret{
 		ObjectMeta: metav1.ObjectMeta{

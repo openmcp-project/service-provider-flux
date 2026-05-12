@@ -265,7 +265,7 @@ func TestSetManagedBy(t *testing.T) {
 			SetManagedBy(tt.obj)
 			labels := tt.obj.GetLabels()
 			assert.NotNil(t, labels)
-			assert.Equal(t, "service-provider-flux", labels[labelManagedBy])
+			assert.Equal(t, "service-provider-flux", labels[LabelManagedBy])
 			// Verify existing labels are preserved
 			for k, v := range tt.existingLabels {
 				assert.Equal(t, v, labels[k])

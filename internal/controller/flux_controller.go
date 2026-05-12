@@ -66,7 +66,7 @@ func (r *FluxReconciler) CreateOrUpdate(ctx context.Context, obj *apiv1alpha1.Fl
 		return ctrl.Result{}, resultWithErrors
 	}
 	if err := mgr.Cleanup(ctx); err != nil {
-		resourceCleanupError := errors.New("resource cleanup failed")
+		resourceCleanupError := fmt.Errorf("resource cleanup failed: %w", err)
 		spruntime.StatusProgressing(obj, apiv1alpha1.ConditionReasonError, resourceCleanupError.Error())
 		return ctrl.Result{}, resourceCleanupError
 	}
