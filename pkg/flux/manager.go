@@ -43,10 +43,10 @@ type Manager interface {
 	Delete(context.Context) (_ []Result, cleanup error)
 }
 
-// OrphanCleaner removes any previously managed objects that are no longer part of the desired state
+// OrphanCleaner removes any previously managed objects that are no longer part of the desired state.
 type OrphanCleaner interface {
-	// []Result contain cleanup errors that can be mapped to a managed object
-	// error represent cleanup errors that cannot be mapped to a managed object
+	// []Result contains cleanup errors that can be mapped to a managed object.
+	// error represent cleanup errors that cannot be mapped to a managed object.
 	Cleanup(ctx context.Context) ([]Result, error)
 }
 

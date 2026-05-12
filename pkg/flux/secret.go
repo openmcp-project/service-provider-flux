@@ -143,19 +143,18 @@ func (c *secretCleaner) Cleanup(ctx context.Context) ([]Result, error) {
 	for _, secret := range secretCopies.Items {
 		if !slices.ContainsFunc(c.secretsToKeep, func(ref corev1.LocalObjectReference) bool { return secret.Name == ref.Name }) {
 			if err := c.client.Delete(ctx, &secret); client.IgnoreNotFound(err) != nil {
-				results = append(results, orphanCleanupErrorResult(&secret, err))
+				results = append(results, cleanupErrorResult(&secret, err))
 			}
 		}
 	}
 	return results, nil
 }
 
-func orphanCleanupErrorResult(obj *corev1.Secret, err error) Result {
+func cleanupErrorResult(obj *corev1.Secret, err error) Result {
 	return Result{
 		Object: &managedObject{
 			object:         obj,
-			reconcileFunc:  nil,
-			statusFunc:     SecretCleanupErrorStatus,
+			statusFunc:     cleanupErrorStatus,
 			deletionPolicy: Delete,
 		},
 		OperationResult: OperationResultDeletionRequested,
@@ -163,8 +162,7 @@ func orphanCleanupErrorResult(obj *corev1.Secret, err error) Result {
 	}
 }
 
-// SecretCleanupErrorStatus is required to indicate errors on secret cleanup
-func SecretCleanupErrorStatus(_ client.Object, rl apiv1alpha1.ResourceLocation) Status {
+func cleanupErrorStatus(_ client.Object, rl apiv1alpha1.ResourceLocation) Status {
 	return Status{
 		Phase:    apiv1alpha1.Terminating,
 		Message:  "Secret cleanup failed",
