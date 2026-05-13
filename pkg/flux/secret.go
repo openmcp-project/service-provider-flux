@@ -31,6 +31,9 @@ import (
 
 const secretNamePrefix = "sp-flux-"
 
+// ErrSecretCleanup is an user-facing error that indicates secret cleanup failures
+var ErrSecretCleanup = errors.New("secret cleanup failed")
+
 // SecretCopyConfig holds the configuration for copying secrets.
 type SecretCopyConfig struct {
 	// SourceClient is the client to read the source secret from.
@@ -115,16 +118,16 @@ func PrefixSecretName(secretName string) (string, error) {
 var _ OrphanCleaner = &secretCleaner{}
 
 type secretCleaner struct {
-	client        client.Client
+	cluster       ManagedCluster
 	namespace     string
 	secretsToKeep []corev1.LocalObjectReference
 }
 
 // NewSecretCleaner removes redundant pull secrets in the given target namespace
 // by removing any secret labeled as managed by sp-flux that is not in secretsToKeep.
-func NewSecretCleaner(c client.Client, namespace string, secretsToKeep []corev1.LocalObjectReference) OrphanCleaner {
+func NewSecretCleaner(cluster ManagedCluster, namespace string, secretsToKeep []corev1.LocalObjectReference) OrphanCleaner {
 	return &secretCleaner{
-		client:        c,
+		cluster:       cluster,
 		namespace:     namespace,
 		secretsToKeep: secretsToKeep,
 	}
@@ -133,31 +136,33 @@ func NewSecretCleaner(c client.Client, namespace string, secretsToKeep []corev1.
 func (c *secretCleaner) Cleanup(ctx context.Context) ([]Result, error) {
 	results := []Result{}
 	secretCopies := &corev1.SecretList{}
-	if err := c.client.List(ctx, secretCopies,
+	cl := c.cluster.GetClient()
+	if err := cl.List(ctx, secretCopies,
 		client.InNamespace(c.namespace),
 		client.MatchingLabels{LabelManagedBy: labelServiceProviderFlux},
 	); err != nil {
 		log.FromContext(ctx).Error(err, "failed to list secrets for orphan cleanup")
-		return nil, errors.New("secret cleanup failed")
+		return nil, ErrSecretCleanup
 	}
 	for _, secret := range secretCopies.Items {
 		if !slices.ContainsFunc(c.secretsToKeep, func(ref corev1.LocalObjectReference) bool { return secret.Name == ref.Name }) {
-			if err := c.client.Delete(ctx, &secret); client.IgnoreNotFound(err) != nil {
-				results = append(results, cleanupErrorResult(&secret, err))
+			if err := cl.Delete(ctx, &secret); client.IgnoreNotFound(err) != nil {
+				results = append(results, c.cleanupErrorResult(&secret, err))
 			}
 		}
 	}
 	return results, nil
 }
 
-func cleanupErrorResult(obj *corev1.Secret, err error) Result {
+func (c *secretCleaner) cleanupErrorResult(obj *corev1.Secret, err error) Result {
 	return Result{
 		Object: &managedObject{
 			object:         obj,
 			statusFunc:     cleanupErrorStatus,
 			deletionPolicy: Delete,
 		},
-		OperationResult: OperationResultDeletionRequested,
+		Cluster:         c.cluster,
+		OperationResult: OperationResultDeletionFailed,
 		Error:           err,
 	}
 }

@@ -21,6 +21,7 @@ import (
 	"errors"
 	"fmt"
 	"reflect"
+	"strings"
 	"time"
 
 	corev1 "k8s.io/api/core/v1"
@@ -35,6 +36,11 @@ import (
 	"github.com/openmcp-project/service-provider-flux/pkg/flux"
 	"github.com/openmcp-project/service-provider-flux/pkg/spruntime"
 )
+
+const conditionReasonError = "ReconcileError"
+
+// ErrManagedResources is an end-user facing error if errors are present inside Flux.Status.ManagedResources
+var ErrManagedResources error = errors.New("resources contain reconcile errors")
 
 // FluxReconciler reconciles a Flux object
 type FluxReconciler struct {
@@ -51,7 +57,7 @@ func (r *FluxReconciler) CreateOrUpdate(ctx context.Context, obj *apiv1alpha1.Fl
 	spruntime.StatusProgressing(obj, "Reconciling", "Reconcile in progress")
 	mgr, err := r.createObjectManager(obj, pc, clusters)
 	if err != nil {
-		spruntime.StatusProgressing(obj, apiv1alpha1.ConditionReasonError, err.Error())
+		spruntime.StatusProgressing(obj, conditionReasonError, err.Error())
 		return ctrl.Result{}, err
 	}
 	results, err := mgr.Apply(ctx)
@@ -61,9 +67,7 @@ func (r *FluxReconciler) CreateOrUpdate(ctx context.Context, obj *apiv1alpha1.Fl
 		spruntime.StatusReady(obj)
 	}
 	if resultContainsErrors || err != nil {
-		resultWithErrors := errors.Join(errors.New("createOrUpdate error"), err)
-		spruntime.StatusProgressing(obj, apiv1alpha1.ConditionReasonError, resultWithErrors.Error())
-		return ctrl.Result{}, resultWithErrors
+		return ctrl.Result{}, updateStatusError(obj, resultContainsErrors, err)
 	}
 	return ctrl.Result{}, nil
 }
@@ -73,7 +77,7 @@ func (r *FluxReconciler) Delete(ctx context.Context, obj *apiv1alpha1.Flux, pc *
 	spruntime.StatusTerminating(obj)
 	mgr, err := r.createObjectManager(obj, pc, clusters)
 	if err != nil {
-		spruntime.StatusProgressing(obj, apiv1alpha1.ConditionReasonError, err.Error())
+		spruntime.StatusProgressing(obj, conditionReasonError, err.Error())
 		return ctrl.Result{}, err
 	}
 	results, err := mgr.Delete(ctx)
@@ -83,13 +87,35 @@ func (r *FluxReconciler) Delete(ctx context.Context, obj *apiv1alpha1.Flux, pc *
 		return ctrl.Result{}, nil
 	}
 	if resultContainsErrors || err != nil {
-		resultWithErrors := errors.Join(errors.New("delete error"), err)
-		spruntime.StatusProgressing(obj, apiv1alpha1.ConditionReasonError, resultWithErrors.Error())
-		return ctrl.Result{}, resultWithErrors
+		return ctrl.Result{}, updateStatusError(obj, resultContainsErrors, err)
 	}
 	return ctrl.Result{
 		RequeueAfter: time.Second * 5,
 	}, nil
+}
+
+func updateStatusError(obj *apiv1alpha1.Flux, resourceErrors bool, err error) error {
+	if resourceErrors {
+		err = errors.Join(ErrManagedResources, err)
+	}
+	spruntime.StatusProgressing(obj, conditionReasonError, userErrorMessage(err))
+	return err
+}
+
+// userErrorMessage constructs an end-user facing error message.
+// Only end-user errors are processed.
+func userErrorMessage(err error) string {
+	if err == nil {
+		return ""
+	}
+	errorMessages := []string{}
+	if errors.Is(err, ErrManagedResources) {
+		errorMessages = append(errorMessages, ErrManagedResources.Error())
+	}
+	if errors.Is(err, flux.ErrSecretCleanup) {
+		errorMessages = append(errorMessages, flux.ErrSecretCleanup.Error())
+	}
+	return strings.Join(errorMessages, "; ")
 }
 
 func (r *FluxReconciler) createObjectManager(obj *apiv1alpha1.Flux, pc *apiv1alpha1.ProviderConfig, clusters spruntime.ClusterContext) (flux.Manager, error) {
@@ -161,12 +187,12 @@ func (r *FluxReconciler) createObjectManager(obj *apiv1alpha1.Flux, pc *apiv1alp
 	mgr.AddCluster(platformCluster)
 
 	// create cleaners to remove orphaned pull secret copies
-	platformCleaner := flux.NewSecretCleaner(platformCluster.GetClient(), tenantNamespace, []corev1.LocalObjectReference{
+	platformCleaner := flux.NewSecretCleaner(platformCluster, tenantNamespace, []corev1.LocalObjectReference{
 		{
 			Name: prefixedChartPullSecret,
 		},
 	})
-	controlPlaneCleaner := flux.NewSecretCleaner(mcpCluster.GetClient(), fluxNamespace, helmValues.ImagePullSecrets)
+	controlPlaneCleaner := flux.NewSecretCleaner(mcpCluster, fluxNamespace, helmValues.ImagePullSecrets)
 
 	mgr.AddCleaner(platformCleaner)
 	mgr.AddCleaner(controlPlaneCleaner)
@@ -202,7 +228,7 @@ func resultsToResources(ctx context.Context, results []flux.Result) ([]apiv1alph
 		})
 		if res.Error != nil {
 			containsError = true
-			l.Error(res.Error, fmt.Sprintf("objectID (%s)", flux.ObjectID(obj)))
+			l.Error(res.Error, "object reconcile failed", "objectID", flux.ObjectID(obj))
 		}
 	}
 	return resources, containsError

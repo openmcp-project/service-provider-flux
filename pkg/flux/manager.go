@@ -25,6 +25,8 @@ import (
 )
 
 const (
+	// OperationResultDeletionFailed indicates failed to be deleted
+	OperationResultDeletionFailed controllerutil.OperationResult = "deletionFailed"
 	// OperationResultDeletionRequested indicates that an object has been marked for deletion
 	OperationResultDeletionRequested controllerutil.OperationResult = "deletionRequested"
 	// OperationResultDeleted indicates that an object has been deleted
@@ -46,7 +48,7 @@ type Manager interface {
 // OrphanCleaner removes any previously managed objects that are no longer part of the desired state.
 type OrphanCleaner interface {
 	// []Result contains cleanup errors that can be mapped to a managed object.
-	// error represent cleanup errors that cannot be mapped to a managed object.
+	// error represents cleanup errors that cannot be mapped to a managed object.
 	Cleanup(ctx context.Context) ([]Result, error)
 }
 

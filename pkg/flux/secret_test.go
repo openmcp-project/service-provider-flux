@@ -134,7 +134,7 @@ func TestPrefixSecretName(t *testing.T) {
 func Test_secretCleaner_Cleanup(t *testing.T) {
 	tests := []struct {
 		name            string // description of this test case
-		client          client.Client
+		cluster         ManagedCluster
 		targetNamespace string
 		secretsToKeep   []corev1.LocalObjectReference
 		want            []corev1.Secret
@@ -144,10 +144,10 @@ func Test_secretCleaner_Cleanup(t *testing.T) {
 		{
 			name:            "only managed secrets are deleted",
 			targetNamespace: "flux-system",
-			client: createFakeClient([]client.Object{
+			cluster: createFakeCluster(createFakeClient([]client.Object{
 				testSecret("a", "flux-system", true),
 				testSecret("b", "flux-system", false),
-			}),
+			})),
 			secretsToKeep: []corev1.LocalObjectReference{},
 			want: []corev1.Secret{
 				*testSecret("b", "flux-system", false),
@@ -157,10 +157,10 @@ func Test_secretCleaner_Cleanup(t *testing.T) {
 		{
 			name:            "secrets in other namespaces are not deleted",
 			targetNamespace: "openmcp-system",
-			client: createFakeClient([]client.Object{
+			cluster: createFakeCluster(createFakeClient([]client.Object{
 				testSecret("a", "flux-system", true),
 				testSecret("b", "flux-system", false),
-			}),
+			})),
 			secretsToKeep: []corev1.LocalObjectReference{},
 			want: []corev1.Secret{
 				*testSecret("a", "flux-system", true),
@@ -169,12 +169,12 @@ func Test_secretCleaner_Cleanup(t *testing.T) {
 			wantErr: false,
 		},
 		{
-			name:            "wanted secrets are not deleted",
+			name:            "secrets to keep are not deleted",
 			targetNamespace: "flux-system",
-			client: createFakeClient([]client.Object{
+			cluster: createFakeCluster(createFakeClient([]client.Object{
 				testSecret("a", "flux-system", true),
 				testSecret("b", "flux-system", false),
-			}),
+			})),
 			secretsToKeep: []corev1.LocalObjectReference{
 				{
 					Name: "a",
@@ -188,7 +188,7 @@ func Test_secretCleaner_Cleanup(t *testing.T) {
 		},
 		{
 			name:            "error is returned when list fails",
-			client:          listErrorClient{},
+			cluster:         createFakeCluster(listErrorClient{}),
 			targetNamespace: "flux-system",
 			secretsToKeep:   []corev1.LocalObjectReference{},
 			want:            []corev1.Secret{},
@@ -196,9 +196,9 @@ func Test_secretCleaner_Cleanup(t *testing.T) {
 		},
 		{
 			name: "error is returned when delete fails",
-			client: deleteErrorClient{
+			cluster: createFakeCluster(deleteErrorClient{
 				fakeSecret: *testSecret("a", "flux-system", true),
-			},
+			}),
 			targetNamespace: "flux-system",
 			secretsToKeep:   []corev1.LocalObjectReference{},
 			want:            []corev1.Secret{},
@@ -208,7 +208,7 @@ func Test_secretCleaner_Cleanup(t *testing.T) {
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			c := NewSecretCleaner(tt.client, tt.targetNamespace, tt.secretsToKeep)
+			c := NewSecretCleaner(tt.cluster, tt.targetNamespace, tt.secretsToKeep)
 			results, gotErr := c.Cleanup(context.Background())
 			if gotErr != nil {
 				if !tt.wantErr {
@@ -223,13 +223,31 @@ func Test_secretCleaner_Cleanup(t *testing.T) {
 				return
 			}
 			secretList := &corev1.SecretList{}
-			require.NoError(t, tt.client.List(context.Background(), secretList))
+			require.NoError(t, tt.cluster.GetClient().List(context.Background(), secretList))
 			for _, gotSecret := range secretList.Items {
 				assert.True(t, slices.ContainsFunc(tt.want, func(s corev1.Secret) bool {
 					return s.Name == gotSecret.Name && s.Namespace == gotSecret.Namespace
 				}))
 			}
 		})
+	}
+}
+
+var _ ManagedCluster = &fakeCluster{}
+
+type fakeCluster struct {
+	managedCluster
+	fakeClient client.Client
+}
+
+// GetClient implements [ManagedCluster].
+func (f *fakeCluster) GetClient() client.Client {
+	return f.fakeClient
+}
+
+func createFakeCluster(client client.Client) ManagedCluster {
+	return &fakeCluster{
+		fakeClient: client,
 	}
 }
 
