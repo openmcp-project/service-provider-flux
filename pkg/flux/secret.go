@@ -15,18 +15,24 @@ package flux
 
 import (
 	"context"
+	"errors"
 	"fmt"
+	"slices"
 
 	ctrlutils "github.com/openmcp-project/controller-utils/pkg/controller"
 	openmcpresources "github.com/openmcp-project/controller-utils/pkg/resources"
 	corev1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"sigs.k8s.io/controller-runtime/pkg/client"
+	"sigs.k8s.io/controller-runtime/pkg/log"
 
 	apiv1alpha1 "github.com/openmcp-project/service-provider-flux/api/v1alpha1"
 )
 
 const secretNamePrefix = "sp-flux-"
+
+// ErrSecretCleanup is an user-facing error that indicates secret cleanup failures
+var ErrSecretCleanup = errors.New("secret cleanup failed")
 
 // SecretCopyConfig holds the configuration for copying secrets.
 type SecretCopyConfig struct {
@@ -107,4 +113,64 @@ func SecretStatus(o client.Object, rl apiv1alpha1.ResourceLocation) Status {
 // and a hash suffix appended for uniqueness via ShortenToXCharacters.
 func PrefixSecretName(secretName string) (string, error) {
 	return ctrlutils.ShortenToXCharacters(fmt.Sprintf("%s%s", secretNamePrefix, secretName), ctrlutils.K8sMaxNameLength)
+}
+
+var _ OrphanCleaner = &secretCleaner{}
+
+type secretCleaner struct {
+	cluster       ManagedCluster
+	namespace     string
+	secretsToKeep []corev1.LocalObjectReference
+}
+
+// NewSecretCleaner removes redundant pull secrets in the given target namespace
+// by removing any secret labeled as managed by sp-flux that is not in secretsToKeep.
+func NewSecretCleaner(cluster ManagedCluster, namespace string, secretsToKeep []corev1.LocalObjectReference) OrphanCleaner {
+	return &secretCleaner{
+		cluster:       cluster,
+		namespace:     namespace,
+		secretsToKeep: secretsToKeep,
+	}
+}
+
+func (c *secretCleaner) Cleanup(ctx context.Context) ([]Result, error) {
+	results := []Result{}
+	secretCopies := &corev1.SecretList{}
+	cl := c.cluster.GetClient()
+	if err := cl.List(ctx, secretCopies,
+		client.InNamespace(c.namespace),
+		client.MatchingLabels{LabelManagedBy: labelServiceProviderFlux},
+	); err != nil {
+		log.FromContext(ctx).Error(err, "failed to list secrets for orphan cleanup")
+		return nil, ErrSecretCleanup
+	}
+	for _, secret := range secretCopies.Items {
+		if !slices.ContainsFunc(c.secretsToKeep, func(ref corev1.LocalObjectReference) bool { return secret.Name == ref.Name }) {
+			if err := cl.Delete(ctx, &secret); client.IgnoreNotFound(err) != nil {
+				results = append(results, c.cleanupErrorResult(&secret, err))
+			}
+		}
+	}
+	return results, nil
+}
+
+func (c *secretCleaner) cleanupErrorResult(obj *corev1.Secret, err error) Result {
+	return Result{
+		Object: &managedObject{
+			object:         obj,
+			statusFunc:     cleanupErrorStatus,
+			deletionPolicy: Delete,
+		},
+		Cluster:         c.cluster,
+		OperationResult: OperationResultDeletionFailed,
+		Error:           err,
+	}
+}
+
+func cleanupErrorStatus(_ client.Object, rl apiv1alpha1.ResourceLocation) Status {
+	return Status{
+		Phase:    apiv1alpha1.Terminating,
+		Message:  "Secret cleanup failed",
+		Location: rl,
+	}
 }

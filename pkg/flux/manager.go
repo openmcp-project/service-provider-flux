@@ -17,6 +17,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"slices"
 
 	apierrors "k8s.io/apimachinery/pkg/api/errors"
 	"sigs.k8s.io/controller-runtime/pkg/client"
@@ -24,6 +25,8 @@ import (
 )
 
 const (
+	// OperationResultDeletionFailed indicates failed to be deleted
+	OperationResultDeletionFailed controllerutil.OperationResult = "deletionFailed"
 	// OperationResultDeletionRequested indicates that an object has been marked for deletion
 	OperationResultDeletionRequested controllerutil.OperationResult = "deletionRequested"
 	// OperationResultDeleted indicates that an object has been deleted
@@ -37,20 +40,30 @@ type dependents map[ManagedObject][]dependency
 // Manager manages the objects of an arbitrary number of clusters
 type Manager interface {
 	AddCluster(mc ManagedCluster)
-	Apply(context.Context) []Result
-	Delete(context.Context) []Result
+	AddCleaner(oc OrphanCleaner)
+	Apply(context.Context) (_ []Result, cleanup error)
+	Delete(context.Context) (_ []Result, cleanup error)
+}
+
+// OrphanCleaner removes any previously managed objects that are no longer part of the desired state.
+type OrphanCleaner interface {
+	// []Result contains cleanup errors that can be mapped to a managed object.
+	// error represents cleanup errors that cannot be mapped to a managed object.
+	Cleanup(ctx context.Context) ([]Result, error)
 }
 
 // NewManager creates a new Manager instance.
 func NewManager() Manager {
 	return &managerImpl{
 		clusters: []ManagedCluster{},
+		cleaners: []OrphanCleaner{},
 	}
 }
 
 // managerImpl manages clusters and invokes reconciliation of ManagedObjects.
 type managerImpl struct {
 	clusters []ManagedCluster
+	cleaners []OrphanCleaner
 }
 
 // AddCluster adds a cluster to a Manager.
@@ -59,16 +72,21 @@ func (m *managerImpl) AddCluster(mc ManagedCluster) {
 }
 
 // Apply invokes reconciliation of all ManagedObjects.
-func (m *managerImpl) Apply(ctx context.Context) []Result {
+func (m *managerImpl) Apply(ctx context.Context) ([]Result, error) {
 	return m.reconcileObjects(ctx, false)
 }
 
 // Delete invokes deletion of all ManagedObjects.
-func (m *managerImpl) Delete(ctx context.Context) []Result {
+func (m *managerImpl) Delete(ctx context.Context) ([]Result, error) {
 	return m.reconcileObjects(ctx, true)
 }
 
-func (m *managerImpl) reconcileObjects(ctx context.Context, isDeletion bool) []Result {
+// AddCleaner adds a cleaner to a Manager.
+func (m *managerImpl) AddCleaner(cleaner OrphanCleaner) {
+	m.cleaners = append(m.cleaners, cleaner)
+}
+
+func (m *managerImpl) reconcileObjects(ctx context.Context, isDeletion bool) ([]Result, error) {
 	dependents := m.getDependents()
 
 	// Apply or delete objects from each cluster.
@@ -80,7 +98,16 @@ func (m *managerImpl) reconcileObjects(ctx context.Context, isDeletion bool) []R
 		}
 	}
 
-	return results
+	// remove any redundant resources like secret copies that are no longer part of the desired state.
+	for _, c := range m.cleaners {
+		result, err := c.Cleanup(ctx)
+		if err != nil {
+			return results, err
+		}
+		results = slices.Concat(results, result)
+	}
+
+	return results, nil
 }
 
 func (m *managerImpl) reconcileObject(ctx context.Context, mc ManagedCluster, mo ManagedObject, dependents dependents, isDeletion bool) Result {

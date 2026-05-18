@@ -19,13 +19,12 @@ package controller
 import (
 	"context"
 	"errors"
+	"fmt"
 	"testing"
 
-	"github.com/openmcp-project/controller-utils/pkg/clusters"
 	"github.com/stretchr/testify/assert"
 	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
 	"k8s.io/apimachinery/pkg/runtime/schema"
-	"k8s.io/client-go/rest"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 	"sigs.k8s.io/controller-runtime/pkg/controller/controllerutil"
 
@@ -199,33 +198,12 @@ func (f fakeObject) Reconcile(ctx context.Context) error {
 }
 
 type fakeManagedCluster struct {
+	flux.ManagedCluster
 	clusterType flux.ClusterType
-}
-
-func (f fakeManagedCluster) AddObject(o flux.ManagedObject) {}
-
-func (f fakeManagedCluster) GetObjects() []flux.ManagedObject {
-	return nil
-}
-
-func (f fakeManagedCluster) GetDefaultNamespace() string {
-	return "default"
 }
 
 func (f fakeManagedCluster) GetHostAndPort() (string, string) {
 	return "localhost", "6443"
-}
-
-func (f fakeManagedCluster) GetConfig() *rest.Config {
-	return nil
-}
-
-func (f fakeManagedCluster) GetClient() client.Client {
-	return nil
-}
-
-func (f fakeManagedCluster) GetCluster() *clusters.Cluster {
-	return nil
 }
 
 func (f fakeManagedCluster) GetClusterType() flux.ClusterType {
@@ -293,6 +271,59 @@ func Test_selectFluxVersion(t *testing.T) {
 				t.Fatal("selectFluxVersion() succeeded unexpectedly")
 			}
 			assert.Equal(t, tt.want, got)
+		})
+	}
+}
+
+func Test_updateStatusError(t *testing.T) {
+	tests := []struct {
+		name string // description of this test case
+		// Named input parameters for target function.
+		obj            *apiv1alpha1.Flux
+		resourceErrors bool
+		err            error
+		wantMessage    string
+	}{
+		{
+			name:           "resource error",
+			obj:            &apiv1alpha1.Flux{},
+			resourceErrors: true,
+			err:            nil,
+			wantMessage:    ErrManagedResources.Error(),
+		},
+		{
+			name:           "cleanup error",
+			obj:            &apiv1alpha1.Flux{},
+			resourceErrors: false,
+			err:            flux.ErrSecretCleanup,
+			wantMessage:    flux.ErrSecretCleanup.Error(),
+		},
+		{
+			name:           "combined resource and cleanup error",
+			obj:            &apiv1alpha1.Flux{},
+			resourceErrors: true,
+			err:            flux.ErrSecretCleanup,
+			wantMessage:    fmt.Sprintf("%s; %s", ErrManagedResources.Error(), flux.ErrSecretCleanup.Error()),
+		},
+		{
+			name:           "resource error and no end-user error",
+			obj:            &apiv1alpha1.Flux{},
+			resourceErrors: true,
+			err:            errors.New("non-user-facing-error"),
+			wantMessage:    ErrManagedResources.Error(),
+		},
+		{
+			name:           "no end-user error",
+			obj:            &apiv1alpha1.Flux{},
+			resourceErrors: false,
+			err:            errors.New("non-user-facing-error"),
+			wantMessage:    "",
+		},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			updateStatusError(tt.obj, tt.resourceErrors, tt.err)
+			assert.Equal(t, tt.wantMessage, tt.obj.Status.Conditions[0].Message)
 		})
 	}
 }
