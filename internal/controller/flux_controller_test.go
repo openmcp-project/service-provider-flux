@@ -28,7 +28,7 @@ import (
 	"sigs.k8s.io/controller-runtime/pkg/client"
 	"sigs.k8s.io/controller-runtime/pkg/controller/controllerutil"
 
-	ctrlutils "github.com/openmcp-project/controller-utils/pkg/errors"
+	ctrlerrors "github.com/openmcp-project/controller-utils/pkg/errors"
 
 	apiv1alpha1 "github.com/openmcp-project/service-provider-flux/api/v1alpha1"
 	"github.com/openmcp-project/service-provider-flux/pkg/flux"
@@ -267,7 +267,7 @@ func Test_selectFluxVersion(t *testing.T) {
 				if !tt.wantErr {
 					t.Errorf("selectFluxVersion() failed: %v", gotErr)
 				}
-				assert.Nil(t, ctrlutils.IgnoreInvalidUserInput(gotErr))
+				assert.Nil(t, ctrlerrors.IgnoreInvalidUserInput(gotErr))
 				return
 			}
 			if tt.wantErr {
@@ -327,7 +327,7 @@ func Test_updateStatusError(t *testing.T) {
 			name:            "ignore invalid user input",
 			obj:             &apiv1alpha1.Flux{},
 			resourceErrors:  true,
-			err:             fmt.Errorf("test: %w", ctrlutils.ErrInvalidUserInput),
+			err:             fmt.Errorf("test: %w", ctrlerrors.ErrInvalidUserInput),
 			wantMessage:     ErrManagedResources.Error(),
 			wantIgnoreError: true,
 		},

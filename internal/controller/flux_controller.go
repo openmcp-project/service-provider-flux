@@ -30,7 +30,7 @@ import (
 	"sigs.k8s.io/controller-runtime/pkg/log"
 
 	"github.com/openmcp-project/controller-utils/pkg/clusters"
-	ctrlutils "github.com/openmcp-project/controller-utils/pkg/errors"
+	ctrlerrors "github.com/openmcp-project/controller-utils/pkg/errors"
 	libutils "github.com/openmcp-project/openmcp-operator/lib/utils"
 
 	apiv1alpha1 "github.com/openmcp-project/service-provider-flux/api/v1alpha1"
@@ -59,7 +59,7 @@ func (r *FluxReconciler) CreateOrUpdate(ctx context.Context, obj *apiv1alpha1.Fl
 	mgr, err := r.createObjectManager(obj, pc, clusters)
 	if err != nil {
 		spruntime.StatusProgressing(obj, conditionReasonError, err.Error())
-		return ctrl.Result{}, ctrlutils.IgnoreInvalidUserInput(err)
+		return ctrl.Result{}, ctrlerrors.IgnoreInvalidUserInput(err)
 	}
 	results, err := mgr.Apply(ctx)
 	managedResources, resultContainsErrors := resultsToResources(ctx, results)
@@ -79,7 +79,7 @@ func (r *FluxReconciler) Delete(ctx context.Context, obj *apiv1alpha1.Flux, pc *
 	mgr, err := r.createObjectManager(obj, pc, clusters)
 	if err != nil {
 		spruntime.StatusProgressing(obj, conditionReasonError, err.Error())
-		return ctrl.Result{}, ctrlutils.IgnoreInvalidUserInput(err)
+		return ctrl.Result{}, ctrlerrors.IgnoreInvalidUserInput(err)
 	}
 	results, err := mgr.Delete(ctx)
 	managedResources, resultContainsErrors := resultsToResources(ctx, results)
@@ -100,7 +100,7 @@ func updateStatusError(obj *apiv1alpha1.Flux, resourceErrors bool, err error) er
 		err = errors.Join(ErrManagedResources, err)
 	}
 	spruntime.StatusProgressing(obj, conditionReasonError, userErrorMessage(err))
-	return ctrlutils.IgnoreInvalidUserInput(err)
+	return ctrlerrors.IgnoreInvalidUserInput(err)
 }
 
 // userErrorMessage constructs an end-user facing error message.
@@ -207,7 +207,7 @@ func selectFluxVersion(requestedVersion string, pc *apiv1alpha1.ProviderConfig) 
 			return configVersion, nil
 		}
 	}
-	return apiv1alpha1.FluxVersion{}, fmt.Errorf("%w: requested version (%s) is not available", ctrlutils.ErrInvalidUserInput, requestedVersion)
+	return apiv1alpha1.FluxVersion{}, fmt.Errorf("%w: requested version (%s) is not available", ctrlerrors.ErrInvalidUserInput, requestedVersion)
 }
 
 func resultsToResources(ctx context.Context, results []flux.Result) ([]apiv1alpha1.ManagedResource, bool) {
