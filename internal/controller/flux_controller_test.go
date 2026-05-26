@@ -28,6 +28,8 @@ import (
 	"sigs.k8s.io/controller-runtime/pkg/client"
 	"sigs.k8s.io/controller-runtime/pkg/controller/controllerutil"
 
+	ctrlerrors "github.com/openmcp-project/controller-utils/pkg/errors"
+
 	apiv1alpha1 "github.com/openmcp-project/service-provider-flux/api/v1alpha1"
 	"github.com/openmcp-project/service-provider-flux/pkg/flux"
 )
@@ -265,6 +267,7 @@ func Test_selectFluxVersion(t *testing.T) {
 				if !tt.wantErr {
 					t.Errorf("selectFluxVersion() failed: %v", gotErr)
 				}
+				assert.Nil(t, ctrlerrors.IgnoreInvalidUserInput(gotErr))
 				return
 			}
 			if tt.wantErr {
@@ -279,10 +282,11 @@ func Test_updateStatusError(t *testing.T) {
 	tests := []struct {
 		name string // description of this test case
 		// Named input parameters for target function.
-		obj            *apiv1alpha1.Flux
-		resourceErrors bool
-		err            error
-		wantMessage    string
+		obj             *apiv1alpha1.Flux
+		resourceErrors  bool
+		err             error
+		wantMessage     string
+		wantIgnoreError bool
 	}{
 		{
 			name:           "resource error",
@@ -319,11 +323,24 @@ func Test_updateStatusError(t *testing.T) {
 			err:            errors.New("non-user-facing-error"),
 			wantMessage:    "",
 		},
+		{
+			name:            "ignore invalid user input",
+			obj:             &apiv1alpha1.Flux{},
+			resourceErrors:  true,
+			err:             fmt.Errorf("test: %w", ctrlerrors.ErrInvalidUserInput),
+			wantMessage:     ErrManagedResources.Error(),
+			wantIgnoreError: true,
+		},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			updateStatusError(tt.obj, tt.resourceErrors, tt.err)
+			gotErr := updateStatusError(tt.obj, tt.resourceErrors, tt.err)
 			assert.Equal(t, tt.wantMessage, tt.obj.Status.Conditions[0].Message)
+			if tt.wantIgnoreError {
+				assert.Nil(t, gotErr)
+				return
+			}
+			assert.Error(t, gotErr)
 		})
 	}
 }
