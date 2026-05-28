@@ -234,7 +234,10 @@ func (r *FluxReconciler) createObjectManager(obj *apiv1alpha1.Flux, pc *apiv1alp
 			Name: prefixedCertSecret,
 		},
 	})
-	cpSecretsToKeep := append(helmValues.ImagePullSecrets, corev1.LocalObjectReference{Name: pc.Spec.CertSecretRef})
+
+	cpSecretsToKeep := make([]corev1.LocalObjectReference, 0, 1+len(helmValues.ImagePullSecrets))
+	cpSecretsToKeep = append(cpSecretsToKeep, corev1.LocalObjectReference{Name: pc.Spec.CertSecretRef})
+	cpSecretsToKeep = append(cpSecretsToKeep, helmValues.ImagePullSecrets...)
 	controlPlaneCleaner := flux.NewSecretCleaner(mcpCluster, fluxNamespace, cpSecretsToKeep)
 
 	mgr.AddCleaner(platformCleaner)
