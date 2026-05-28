@@ -46,6 +46,9 @@ func ExtractHelmValues(values *apiextensionsv1.JSON) (*HelmValues, error) {
 	return vals, nil
 }
 
+// AddCaToHelmValues removes conflicting volume and volume mounts (matching by name and/or mountPath) and
+// adds volume and volume mount on the sourceController helm values section.
+// nolint:gocyclo
 func AddCaToHelmValues(values *apiextensionsv1.JSON, secretName string) (*apiextensionsv1.JSON, error) {
 	var root = map[string]json.RawMessage{}
 	var sourceController = map[string]json.RawMessage{}
