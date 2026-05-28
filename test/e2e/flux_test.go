@@ -243,7 +243,7 @@ func TestServiceProvider(t *testing.T) {
 			}
 			return ctx
 		}).
-		Assess("provider config update drops pull secrets", func(ctx context.Context, t *testing.T, c *envconf.Config) context.Context {
+		Assess("provider config update secrets", func(ctx context.Context, t *testing.T, c *envconf.Config) context.Context {
 			if err := v1alpha1.AddToScheme(c.Client().Resources().GetScheme()); err != nil {
 				t.Errorf("failed to add api types to client scheme: %s", err)
 				return ctx
