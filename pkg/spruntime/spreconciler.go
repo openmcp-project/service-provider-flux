@@ -8,10 +8,13 @@ import (
 
 	"github.com/openmcp-project/controller-utils/pkg/clusters"
 	clustersv1alpha1 "github.com/openmcp-project/openmcp-operator/api/clusters/v1alpha1"
+	"github.com/openmcp-project/openmcp-operator/api/common"
+	"github.com/openmcp-project/openmcp-operator/lib/clusteraccess"
 	"k8s.io/apimachinery/pkg/api/equality"
 	apierrors "k8s.io/apimachinery/pkg/api/errors"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
+	"k8s.io/apimachinery/pkg/runtime"
 	ctrl "sigs.k8s.io/controller-runtime"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 	"sigs.k8s.io/controller-runtime/pkg/client/apiutil"
@@ -406,4 +409,124 @@ func retrieveSecretKey(ar *clustersv1alpha1.AccessRequest) client.ObjectKey {
 		Namespace: ar.Namespace,
 		Name:      ar.Status.SecretRef.Name,
 	}
+}
+
+var _ clusteraccess.Reconciler = &localAccessProvider{}
+
+// localAccessProvider is used when a debug flag is enabled to adjust cluster client configs
+// builder methods have to be wrapped to keep pointer to local access impl
+type localAccessProvider struct {
+	clusteraccess.Reconciler
+}
+
+// SkipWorkloadCluster implements [clusteraccess.Reconciler].
+func (s *localAccessProvider) SkipWorkloadCluster() clusteraccess.Reconciler {
+	s.Reconciler = s.Reconciler.SkipWorkloadCluster()
+	return s
+}
+
+// WithMCPPermissions implements [clusteraccess.Reconciler].
+func (s *localAccessProvider) WithMCPPermissions(permissions []clustersv1alpha1.PermissionsRequest) clusteraccess.Reconciler {
+	s.Reconciler = s.Reconciler.WithMCPPermissions(permissions)
+	return s
+}
+
+// WithMCPRoleRefs implements [clusteraccess.Reconciler].
+func (s *localAccessProvider) WithMCPRoleRefs(roleRefs []common.RoleRef) clusteraccess.Reconciler {
+	s.Reconciler = s.Reconciler.WithMCPRoleRefs(roleRefs)
+	return s
+}
+
+// WithMCPScheme implements [clusteraccess.Reconciler].
+func (s *localAccessProvider) WithMCPScheme(scheme *runtime.Scheme) clusteraccess.Reconciler {
+	s.Reconciler = s.Reconciler.WithMCPScheme(scheme)
+	return s
+}
+
+// WithRetryInterval implements [clusteraccess.Reconciler].
+func (s *localAccessProvider) WithRetryInterval(interval time.Duration) clusteraccess.Reconciler {
+	s.Reconciler = s.Reconciler.WithRetryInterval(interval)
+	return s
+}
+
+// WithWorkloadPermissions implements [clusteraccess.Reconciler].
+func (s *localAccessProvider) WithWorkloadPermissions(permissions []clustersv1alpha1.PermissionsRequest) clusteraccess.Reconciler {
+	s.Reconciler = s.Reconciler.WithWorkloadPermissions(permissions)
+	return s
+}
+
+// WithWorkloadRoleRefs implements [clusteraccess.Reconciler].
+func (s *localAccessProvider) WithWorkloadRoleRefs(roleRefs []common.RoleRef) clusteraccess.Reconciler {
+	s.Reconciler = s.Reconciler.WithWorkloadRoleRefs(roleRefs)
+	return s
+}
+
+// WithWorkloadScheme implements [clusteraccess.Reconciler].
+func (s *localAccessProvider) WithWorkloadScheme(scheme *runtime.Scheme) clusteraccess.Reconciler {
+	s.Reconciler = s.Reconciler.WithWorkloadScheme(scheme)
+	return s
+}
+
+// NewLocalAccessReconciler wraps the default cluster access reconciler for local debugging
+func NewLocalAccessReconciler(car clusteraccess.Reconciler) clusteraccess.Reconciler {
+	return &localAccessProvider{
+		Reconciler: car,
+	}
+}
+
+// MCPCluster implements [ClusterAccessProvider].
+func (s *localAccessProvider) MCPCluster(ctx context.Context, request reconcile.Request) (*clusters.Cluster, error) {
+	cluster, err := s.Reconciler.MCPCluster(ctx, request)
+	if err != nil {
+		return cluster, err
+	}
+	ar, err := s.MCPAccessRequest(ctx, request)
+	if err != nil {
+		return cluster, err
+	}
+	// patch cluster client with annotation value
+	return MustPatchClusterClient(ctx, ar, cluster), err
+}
+
+// WorkloadCluster implements [ClusterAccessProvider].
+func (s *localAccessProvider) WorkloadCluster(ctx context.Context, request reconcile.Request) (*clusters.Cluster, error) {
+	cluster, err := s.Reconciler.WorkloadCluster(ctx, request)
+	if err != nil {
+		return cluster, err
+	}
+	ar, err := s.WorkloadAccessRequest(ctx, request)
+	if err != nil {
+		return cluster, err
+	}
+	// patch cluster client with annotation value
+	return MustPatchClusterClient(ctx, ar, cluster), err
+}
+
+// sample AR
+// apiVersion: clusters.openmcp.cloud/v1alpha1
+// kind: AccessRequest
+// metadata:
+//
+//	annotations:
+//	  kind.clusters.openmcp.cloud/localhost: https://127.0.0.1:42827
+const localAnnotationKey = "kind.clusters.openmcp.cloud/localhost"
+
+// MustPatchClusterClient replaces the cluster client with the host value of the local AR annotation
+func MustPatchClusterClient(ctx context.Context, ar *clustersv1alpha1.AccessRequest, cluster *clusters.Cluster) *clusters.Cluster {
+	annotations := ar.GetAnnotations()
+	if annotations == nil {
+		logf.FromContext(ctx).Info("debug access provider used but no annotations set")
+		return cluster
+	}
+	if value, exists := annotations[localAnnotationKey]; exists {
+		restCfg := cluster.RESTConfig()
+		restCfg.Host = value
+		// re-init client
+		if err := cluster.InitializeClient(cluster.Client().Scheme()); err != nil {
+			panic(err)
+		}
+	} else {
+		logf.FromContext(ctx).Info("debug access provider used but no annotations set")
+	}
+	return cluster
 }
