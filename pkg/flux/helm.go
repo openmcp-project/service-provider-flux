@@ -15,6 +15,7 @@ package flux
 
 import (
 	"encoding/json"
+	"fmt"
 
 	corev1 "k8s.io/api/core/v1"
 	apiextensionsv1 "k8s.io/apiextensions-apiserver/pkg/apis/apiextensions/v1"
@@ -43,4 +44,115 @@ func ExtractHelmValues(values *apiextensionsv1.JSON) (*HelmValues, error) {
 	}
 
 	return vals, nil
+}
+
+func AddCaToHelmValues(values *apiextensionsv1.JSON, secretName string) (*apiextensionsv1.JSON, error) {
+	var root = map[string]json.RawMessage{}
+	var sourceController = map[string]json.RawMessage{}
+	var volumes []corev1.Volume
+	var volumeMounts []corev1.VolumeMount
+
+	caVolume := corev1.Volume{
+		Name: "sp-flux-custom-ca",
+		VolumeSource: corev1.VolumeSource{
+			Secret: &corev1.SecretVolumeSource{
+				SecretName: secretName,
+				Items: []corev1.KeyToPath{
+					{
+						Key:  "ca.crt",
+						Path: "sp-flux-custom-ca.crt",
+					},
+				},
+			},
+		},
+	}
+
+	caVolumeMount := corev1.VolumeMount{
+		Name:      "sp-flux-custom-ca",
+		ReadOnly:  true,
+		MountPath: "/etc/ssl/certs/sp-flux-custom-ca.crt",
+		SubPath:   "sp-flux-custom-ca.crt",
+	}
+
+	if values != nil && len(values.Raw) > 0 {
+		if err := json.Unmarshal(values.Raw, &root); err != nil {
+			return nil, fmt.Errorf("failed to unmarshal helm values: %w", err)
+		}
+
+		if err := unmarshalIfPresent(root, "sourceController", &sourceController); err != nil {
+			return nil, fmt.Errorf("failed to unmarshal sourceController: %w", err)
+		}
+
+		if err := unmarshalIfPresent(sourceController, "volumes", &volumes); err != nil {
+			return nil, fmt.Errorf("failed to unmarshal sourceController.volumes: %w", err)
+		}
+
+		if err := unmarshalIfPresent(sourceController, "volumeMounts", &volumeMounts); err != nil {
+			return nil, fmt.Errorf("failed to unmarshal sourceController.volumeMounts: %w", err)
+		}
+	}
+
+	volumes = removeConflictingVolumes(volumes, caVolume)
+	volumeMounts = removeConflictingVolumeMounts(volumeMounts, caVolumeMount)
+
+	volumes = append(volumes, caVolume)
+	volumeMounts = append(volumeMounts, caVolumeMount)
+
+	volumesRaw, err := json.Marshal(volumes)
+	if err != nil {
+		return nil, fmt.Errorf("failed to marshal sourceController.volumes: %w", err)
+	}
+
+	volumeMountsRaw, err := json.Marshal(volumeMounts)
+	if err != nil {
+		return nil, fmt.Errorf("failed to marshal sourceController.volumeMounts: %w", err)
+	}
+
+	sourceController["volumes"] = volumesRaw
+	sourceController["volumeMounts"] = volumeMountsRaw
+
+	sourceControllerRaw, err := json.Marshal(sourceController)
+	if err != nil {
+		return nil, fmt.Errorf("failed to marshal sourceController: %w", err)
+	}
+
+	root["sourceController"] = sourceControllerRaw
+
+	out, err := json.Marshal(root)
+	if err != nil {
+		return nil, fmt.Errorf("failed to marshal helm values: %w", err)
+	}
+
+	return &apiextensionsv1.JSON{Raw: out}, nil
+}
+
+func removeConflictingVolumes(volumes []corev1.Volume, caVolume corev1.Volume) []corev1.Volume {
+	r := []corev1.Volume{}
+	for _, volume := range volumes {
+		if volume.Name != caVolume.Name {
+			r = append(r, volume)
+		}
+	}
+	return r
+}
+
+func removeConflictingVolumeMounts(volumeMounts []corev1.VolumeMount, caVolumeMount corev1.VolumeMount) []corev1.VolumeMount {
+	r := []corev1.VolumeMount{}
+	for _, volumeMount := range volumeMounts {
+		if volumeMount.MountPath != caVolumeMount.MountPath && volumeMount.Name != caVolumeMount.Name {
+			r = append(r, volumeMount)
+		}
+	}
+	return r
+}
+
+func unmarshalIfPresent(obj map[string]json.RawMessage, key string, out any) error {
+	raw, ok := obj[key]
+	if !ok || len(raw) == 0 {
+		return nil
+	}
+	if err := json.Unmarshal(raw, out); err != nil {
+		return fmt.Errorf("invalid %s JSON: %w", key, err)
+	}
+	return nil
 }
