@@ -146,6 +146,8 @@ metadata:
 spec:
   # Optional: Reconciliation interval
   pollInterval: "5m"
+  # Optional: Secret for custom CA certificate/bundle (will be copied to ManagedControlPlane)
+  certSecretRef: "custom-ca-cert"
   # The Flux versions that can be installed
   versions:
     - version: "2.8.3"
@@ -170,10 +172,11 @@ spec:
           tag: v1.8.1
 ```
 
-| Field               | Type     | Description                                    |
-| ------------------- | -------- | ---------------------------------------------- |
-| `spec.pollInterval` | duration | How often to reconcile resources (default: 1m) |
-| `spec.versions`     | array    | The versions of Flux that can be installed     |
+| Field               | Type     | Description                                      |
+| ------------------- | -------- | ------------------------------------------------ |
+| `spec.pollInterval` | duration | How often to reconcile resources (default: 1m)   |
+| `certSecretRef`     | object   | SecretRef for chart registry trust establishment |
+| `spec.versions`     | array    | The versions of Flux that can be installed       |
 
 A version item is defined as follows:
 

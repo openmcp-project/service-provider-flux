@@ -13,6 +13,7 @@ In air-gapped environments, you typically need to:
 The Flux service provider handles this through:
 
 - **`chartPullSecret`**: Credentials for pulling the Helm chart from a private OCI registry
+- **`certSecretRef`**: Private CA certificate for pulling the Helm chart from a private OCI registry
 - **`values.imagePullSecrets`**: Credentials for pulling Flux controller images (specified in Helm values)
 - **`values`**: Custom Helm values for image location overrides
 
@@ -24,15 +25,18 @@ flowchart TB
   subgraph PC[Platform Cluster]
     subgraph SPN[Service Provider Namespace]
       chartsecret([chart-pull-secret])
+      customcasecret([custom-ca-secret])
       imgsecret1([image-pull-secret-1])
       imgsecret2([image-pull-secret-2])
     end
 
     subgraph TN[Tenant Namespace]
       chartsecretcopy([chart-pull-secret copy])
+      customcasecretcopy([custom-ca-secret copy])
       ocirepo([OCIRepository])
       helmrel([HelmRelease])
       ocirepo -. refs .-> chartsecretcopy
+      ocirepo -. refs .-> customcasecretcopy
     end
   end
 
@@ -40,15 +44,19 @@ flowchart TB
     subgraph FS[flux-system namespace]
       imgcopy1([image-pull-secret-1])
       imgcopy2([image-pull-secret-2])
+      casecretcopy([custom-ca-secret])
       fluxctrl[Flux Controllers]
       fluxctrl -. uses .-> imgcopy1
       fluxctrl -. uses .-> imgcopy2
+      fluxctrl -. uses .-> casecretcopy
     end
   end
 
   chartsecret -- copied to --> chartsecretcopy
+  customcasecret -- copied to --> customcasecretcopy
   imgsecret1 -- copied to --> imgcopy1
   imgsecret2 -- copied to --> imgcopy2
+  customcasecret -- copied to --> casecretcopy
   helmrel -- installs --> fluxctrl
 ```
 
@@ -63,6 +71,13 @@ metadata:
   name: flux-provider-config
 spec:
   versions:
+      # Secret with single PEM-encoded custom CA root certificate or bundle stored
+      # on the ca.crt key.
+      # Must exist in the service provider's namespace on the platform cluster
+      # Will be copied to the tenant namespace on the platform cluster and to the
+      # flux-system namespace on the ManagedControlPlane.
+      certSecretRef: "custom-ca-cert"
+
     - version: "2.8.3"
       chartVersion: "2.18.2"
       # Flux Helm chart location (private OCI registry)
@@ -110,6 +125,11 @@ kubectl create secret docker-registry image-registry-credentials \
   --docker-server=registry.internal.corp \
   --docker-username=<username> \
   --docker-password=<password>
+
+# Custom CA certificate secret (for OCI registry connection)
+kubectl create secret generic custom-ca-cert \
+  --namespace <service-provider-namespace> \
+  --ca.crt=<ca-cert>
 ```
 
 ## How It Works
@@ -119,6 +139,22 @@ kubectl create secret docker-registry image-registry-credentials \
 1. The secret specified in `chartPullSecret` is copied from the service provider's namespace to the tenant namespace on the platform cluster
 2. The `OCIRepository` resource references this secret via `spec.secretRef`
 3. The Flux Source Controller uses this secret to authenticate when pulling the Helm chart
+
+### Custom CA Secret
+
+1. The secret specified in `certSecretRef` is copied from the service provider's namespace to the tenant namespace on the platform cluster
+2. The `OCIRepository` resource references this secret via `spec.certSecretRef`
+3. The Flux Source Controller uses this secret to establish a trusted connection with the OCI registry when pulling the Helm chart
+4. The secret is also copied to the MCP cluster flux-system namespace and mounted into the Flux Source Controller
+by adding a volume and volumeMount in to the helm values. Flux in the target MCP hence is also able to verify 
+self-signed certificates used by the OCI repository.  
+
+> [!CAUTION]
+> The custom CA certificate is not propagated to the MCP cluster nodes. If you want to pull images from the same OCI registry you must add the custom CA certificate to the MCP cluster nodes yourself.
+
+> [!NOTE]
+> The secret referenced in certSecretRef can also contain two additional keys tls.key and tls.crt which will be
+> used for mTLS (see here https://fluxcd.io/flux/components/source/ocirepositories/#mutual-tls-authentication)
 
 ### Image Pull Secrets
 
@@ -138,6 +174,8 @@ metadata:
 spec:
   chartUrl: "oci://harbor.corp.internal/charts/flux2"
   chartPullSecret: "harbor-credentials"
+  # Secret containing custom ca cert - will be copied to ManagedControlPlane
+  certSecretRef: "harbor-corp-internal-ca-cert"
   values:
     # Image pull secrets - will be copied to ManagedControlPlane
     imagePullSecrets:
@@ -186,16 +224,17 @@ Verify secrets are copied to the correct namespaces:
 
 ```bash
 # Platform cluster - tenant namespace
-kubectl get secrets -n mcp--<tenant-id> | grep -E "chart|image"
+kubectl get secrets -n mcp--<tenant-id> | grep -E "chart|image|ca"
 
 # ManagedControlPlane - flux-system namespace
-kubectl get secrets -n flux-system | grep -E "image"
+kubectl get secrets -n flux-system | grep -E "image|ca"
 ```
 
 ### Check OCIRepository Secret Reference
 
 ```bash
 kubectl get ocirepository flux -n mcp--<tenant-id> -o jsonpath='{.spec.secretRef}'
+kubectl get ocirepository flux -n mcp--<tenant-id> -o jsonpath='{.spec.certSecretRef}'
 ```
 
 ### Check HelmRelease Values

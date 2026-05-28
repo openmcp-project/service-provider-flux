@@ -41,6 +41,15 @@ spec:
           spec:
             description: spec defines the desired state of ProviderConfig
             properties:
+              certSecretRef:
+                description: |-
+                  certSecretRef is a reference to a Secret in the service provider's namespace
+                  containing a single PEM-encoded CA certificate or a bundle used when pulling
+                  the Helm chart from a private OCI registry.
+                  The secret will be copied to the tenant namespace on the platform cluster
+                  and referenced by the OCIRepository.
+                  The secret must be of type kubernetes.io/opaque.
+                type: string
               pollInterval:
                 default: 1m
                 description: PollInterval determines how often to reconcile resources

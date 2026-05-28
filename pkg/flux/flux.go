@@ -48,6 +48,8 @@ type ManageFluxResourcesParams struct {
 	MCPNamespace string
 	// ChartPullSecretName defines the name of the secret copy that will be placed in the Cluster namespace
 	ChartPullSecretName string
+	// CertSecretName defines the name of the secret copy that will be placed in the Cluster namespace
+	CertSecretName string
 	// Obj is the tenant API object that is being reconciled
 	Obj *apiv1alpha1.Flux
 	// ProviderConfig of the current reconciliation context
@@ -85,6 +87,11 @@ func ManageFluxResources(p ManageFluxResourcesParams) {
 			if p.ChartPullSecretName != "" {
 				ociRepo.Spec.SecretRef = &meta.LocalObjectReference{
 					Name: p.ChartPullSecretName,
+				}
+			}
+			if p.CertSecretName != "" {
+				ociRepo.Spec.CertSecretRef = &meta.LocalObjectReference{
+					Name: p.CertSecretName,
 				}
 			}
 			return nil
