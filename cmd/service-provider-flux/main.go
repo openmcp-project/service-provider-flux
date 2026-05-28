@@ -32,6 +32,7 @@ import (
 	"github.com/openmcp-project/controller-utils/pkg/clusters"
 	crdutil "github.com/openmcp-project/controller-utils/pkg/crds"
 	"github.com/openmcp-project/controller-utils/pkg/logging"
+	"github.com/openmcp-project/opencontrolplane-runtime/pkg/serviceprovider"
 	clustersv1alpha1 "github.com/openmcp-project/openmcp-operator/api/clusters/v1alpha1"
 	"github.com/openmcp-project/openmcp-operator/api/common"
 	openmcpconst "github.com/openmcp-project/openmcp-operator/api/constants"
@@ -54,8 +55,6 @@ import (
 	"sigs.k8s.io/controller-runtime/pkg/webhook"
 
 	"github.com/openmcp-project/service-provider-flux/api/crds"
-
-	spruntime "github.com/openmcp-project/service-provider-flux/pkg/spruntime"
 
 	fluxsv1alpha1 "github.com/openmcp-project/service-provider-flux/api/v1alpha1"
 	"github.com/openmcp-project/service-provider-flux/internal/controller"
@@ -310,17 +309,16 @@ func main() {
 		os.Exit(1)
 	}
 	providerConfigUpdates := make(chan event.GenericEvent)
-	spr := spruntime.NewSPReconciler[*fluxsv1alpha1.Flux, *fluxsv1alpha1.ProviderConfig](
-		func() *fluxsv1alpha1.Flux { return &fluxsv1alpha1.Flux{} },
-	).
-		WithPlatformCluster(platformCluster).
-		WithOnboardingCluster(onboardingCluster).
-		WithServiceProviderReconciler(&controller.FluxReconciler{
+	spr := serviceprovider.NewAPIReconcilerBuilder[*fluxsv1alpha1.Flux, *fluxsv1alpha1.ProviderConfig]().
+		EmptyObjectProvider(func() *fluxsv1alpha1.Flux { return &fluxsv1alpha1.Flux{} }).
+		PlatformCluster(platformCluster).
+		OnboardingCluster(onboardingCluster).
+		Reconciler(&controller.FluxReconciler{
 			OnboardingCluster: onboardingCluster,
 			PlatformCluster:   platformCluster,
 			PodNamespace:      podNamespace,
 		}).
-		WithClusterAccessReconciler(clusteraccess.NewClusterAccessReconciler(platformCluster.Client(), "Flux").
+		ClusterAccessReconciler(clusteraccess.NewClusterAccessReconciler(platformCluster.Client(), "Flux").
 			WithMCPScheme(mcpScheme).
 			WithRetryInterval(10 * time.Second).
 			WithMCPPermissions(adminPermissions).WithMCPRoleRefs([]common.RoleRef{
@@ -329,16 +327,17 @@ func main() {
 				Kind: "ClusterRole",
 			}}).
 			SkipWorkloadCluster(),
-		)
+		).MustBuild()
 	if err := spr.SetupWithManager(mgr, "flux", providerConfigUpdates); err != nil {
 		setupLog.Error(err, "unable to create controller", "controller", "Flux")
 		os.Exit(1)
 	}
-	pcr := spruntime.NewPCReconciler(providerName, func() *fluxsv1alpha1.ProviderConfig {
-		return &fluxsv1alpha1.ProviderConfig{}
-	}).
-		WithPlatformCluster(platformCluster).
-		WithUpdateChannel(providerConfigUpdates)
+	pcr := serviceprovider.NewConfigReconcilerBuilder[*fluxsv1alpha1.ProviderConfig]().
+		EmptyObjectProvider(func() *fluxsv1alpha1.ProviderConfig { return &fluxsv1alpha1.ProviderConfig{} }).
+		ProviderName(providerName).
+		PlatformCluster(platformCluster).
+		UpdateChannel(providerConfigUpdates).
+		MustBuild()
 	if err := pcr.SetupWithManager(mgr); err != nil {
 		setupLog.Error(err, "unable to create controller", "controller", "ProviderConfig")
 		os.Exit(1)

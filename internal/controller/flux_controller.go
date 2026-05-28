@@ -31,11 +31,12 @@ import (
 
 	"github.com/openmcp-project/controller-utils/pkg/clusters"
 	ctrlerrors "github.com/openmcp-project/controller-utils/pkg/errors"
+	"github.com/openmcp-project/opencontrolplane-runtime/pkg/serviceprovider"
+	"github.com/openmcp-project/opencontrolplane-runtime/pkg/serviceprovider/clusteraccess"
 	libutils "github.com/openmcp-project/openmcp-operator/lib/utils"
 
 	apiv1alpha1 "github.com/openmcp-project/service-provider-flux/api/v1alpha1"
 	"github.com/openmcp-project/service-provider-flux/pkg/flux"
-	"github.com/openmcp-project/service-provider-flux/pkg/spruntime"
 )
 
 const conditionReasonError = "ReconcileError"
@@ -54,18 +55,18 @@ type FluxReconciler struct {
 }
 
 // CreateOrUpdate is called on every add or update event
-func (r *FluxReconciler) CreateOrUpdate(ctx context.Context, obj *apiv1alpha1.Flux, pc *apiv1alpha1.ProviderConfig, clusters spruntime.ClusterContext) (ctrl.Result, error) {
-	spruntime.StatusProgressing(obj, "Reconciling", "Reconcile in progress")
+func (r *FluxReconciler) CreateOrUpdate(ctx context.Context, obj *apiv1alpha1.Flux, pc *apiv1alpha1.ProviderConfig, clusters clusteraccess.ClusterContext) (ctrl.Result, error) {
+	serviceprovider.StatusProgressing(obj, "Reconciling", "Reconcile in progress")
 	mgr, err := r.createObjectManager(obj, pc, clusters)
 	if err != nil {
-		spruntime.StatusProgressing(obj, conditionReasonError, err.Error())
+		serviceprovider.StatusProgressing(obj, conditionReasonError, err.Error())
 		return ctrl.Result{}, ctrlerrors.IgnoreInvalidUserInput(err)
 	}
 	results, err := mgr.Apply(ctx)
 	managedResources, resultContainsErrors := resultsToResources(ctx, results)
 	obj.Status.Resources = managedResources
 	if allResourcesReady(managedResources) && err == nil {
-		spruntime.StatusReady(obj)
+		serviceprovider.StatusReady(obj)
 	}
 	if resultContainsErrors || err != nil {
 		return ctrl.Result{}, updateStatusError(obj, resultContainsErrors, err)
@@ -74,11 +75,11 @@ func (r *FluxReconciler) CreateOrUpdate(ctx context.Context, obj *apiv1alpha1.Fl
 }
 
 // Delete is called on every delete event
-func (r *FluxReconciler) Delete(ctx context.Context, obj *apiv1alpha1.Flux, pc *apiv1alpha1.ProviderConfig, clusters spruntime.ClusterContext) (ctrl.Result, error) {
-	spruntime.StatusTerminating(obj)
+func (r *FluxReconciler) Delete(ctx context.Context, obj *apiv1alpha1.Flux, pc *apiv1alpha1.ProviderConfig, clusters clusteraccess.ClusterContext) (ctrl.Result, error) {
+	serviceprovider.StatusTerminating(obj)
 	mgr, err := r.createObjectManager(obj, pc, clusters)
 	if err != nil {
-		spruntime.StatusProgressing(obj, conditionReasonError, err.Error())
+		serviceprovider.StatusProgressing(obj, conditionReasonError, err.Error())
 		return ctrl.Result{}, ctrlerrors.IgnoreInvalidUserInput(err)
 	}
 	results, err := mgr.Delete(ctx)
@@ -99,7 +100,7 @@ func updateStatusError(obj *apiv1alpha1.Flux, resourceErrors bool, err error) er
 	if resourceErrors {
 		err = errors.Join(ErrManagedResources, err)
 	}
-	spruntime.StatusProgressing(obj, conditionReasonError, userErrorMessage(err))
+	serviceprovider.StatusProgressing(obj, conditionReasonError, userErrorMessage(err))
 	return ctrlerrors.IgnoreInvalidUserInput(err)
 }
 
@@ -119,7 +120,7 @@ func userErrorMessage(err error) string {
 	return strings.Join(errorMessages, "; ")
 }
 
-func (r *FluxReconciler) createObjectManager(obj *apiv1alpha1.Flux, pc *apiv1alpha1.ProviderConfig, clusters spruntime.ClusterContext) (flux.Manager, error) {
+func (r *FluxReconciler) createObjectManager(obj *apiv1alpha1.Flux, pc *apiv1alpha1.ProviderConfig, clusters clusteraccess.ClusterContext) (flux.Manager, error) {
 	tenantNamespace, err := libutils.StableMCPNamespace(obj.Name, obj.Namespace)
 	if err != nil {
 		return nil, fmt.Errorf("failed to determine tenant namespace for Flux deployment: %w", err)

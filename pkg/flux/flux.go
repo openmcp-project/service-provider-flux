@@ -26,8 +26,9 @@ import (
 	"k8s.io/utils/ptr"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 
+	"github.com/openmcp-project/opencontrolplane-runtime/pkg/serviceprovider/clusteraccess"
+
 	apiv1alpha1 "github.com/openmcp-project/service-provider-flux/api/v1alpha1"
-	"github.com/openmcp-project/service-provider-flux/pkg/spruntime"
 )
 
 const (
@@ -52,7 +53,7 @@ type ManageFluxResourcesParams struct {
 	// ProviderConfig of the current reconciliation context
 	ProviderConfig *apiv1alpha1.ProviderConfig
 	// ClusterContext of the current reconciliation context
-	ClusterContext spruntime.ClusterContext
+	ClusterContext clusteraccess.ClusterContext
 	// RequestedVersion is the version of flux that a user requested through the onboarding API
 	RequestedVersion apiv1alpha1.FluxVersion
 }
