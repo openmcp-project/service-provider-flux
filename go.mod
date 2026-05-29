@@ -4,8 +4,8 @@ go 1.26.2
 
 require (
 	github.com/fluxcd/helm-controller/api v1.5.4
-	github.com/fluxcd/pkg/apis/meta v1.27.0
-	github.com/fluxcd/pkg/runtime v0.106.0
+	github.com/fluxcd/pkg/apis/meta v1.28.0
+	github.com/fluxcd/pkg/runtime v0.107.0
 	github.com/fluxcd/source-controller/api v1.8.4
 	github.com/openmcp-project/controller-utils v0.29.0
 	github.com/openmcp-project/opencontrolplane-runtime v0.2.1
