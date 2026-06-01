@@ -246,7 +246,7 @@ func main() {
 		},
 	}
 	clusterAccessManager := clusteraccess.NewClusterAccessManager(platformCluster.Client(),
-		"flux.flux.services.openmcp.cloud", os.Getenv("POD_NAMESPACE"))
+		fluxsv1alpha1.GroupVersion.Group, os.Getenv("POD_NAMESPACE"))
 	clusterAccessManager.WithLogger(&log).
 		WithInterval(10 * time.Second).
 		WithTimeout(30 * time.Minute)
@@ -393,7 +393,7 @@ func requestOnboardingClusterAccess(ctx context.Context, mgr clusteraccess.Manag
 func patchOnboardingClient(ctx context.Context, platformCluster *clusters.Cluster, onboardingCluster *clusters.Cluster, cmdSuffix string) (*clusters.Cluster, error) {
 	onboardingAr := &clustersv1alpha1.AccessRequest{
 		ObjectMeta: metav1.ObjectMeta{
-			Name:      clusteraccess.StableRequestNameFromLocalName("fooservice.foo.services.open-control-plane.io", cmdSuffix),
+			Name:      clusteraccess.StableRequestNameFromLocalName(fluxsv1alpha1.GroupVersion.Group, cmdSuffix),
 			Namespace: os.Getenv("POD_NAMESPACE"),
 		},
 	}
