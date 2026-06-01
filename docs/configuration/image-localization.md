@@ -57,7 +57,7 @@ flowchart TB
 ### ProviderConfig
 
 ```yaml
-apiVersion: flux.services.openmcp.cloud/v1alpha1
+apiVersion: flux.services.open-control-plane.io/v1alpha1
 kind: ProviderConfig
 metadata:
   name: flux-provider-config
@@ -131,7 +131,7 @@ kubectl create secret docker-registry image-registry-credentials \
 ### Air-Gapped Setup
 
 ```yaml
-apiVersion: flux.services.openmcp.cloud/v1alpha1
+apiVersion: flux.services.open-control-plane.io/v1alpha1
 kind: ProviderConfig
 metadata:
   name: flux-airgapped
