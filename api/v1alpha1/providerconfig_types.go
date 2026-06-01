@@ -35,6 +35,20 @@ type ProviderConfigSpec struct {
 	// +kubebuilder:default:="1m"
 	// +kubebuilder:validation:Format=duration
 	PollInterval *metav1.Duration `json:"pollInterval,omitempty"`
+
+	// CertSecretRef is a reference to a Secret in the service provider's namespace
+	// containing a single PEM-encoded CA certificate or a bundle used when pulling
+	// the Helm chart from a private OCI registry.
+	// The secret will be copied to the tenant namespace on the platform cluster
+	// and referenced by the OCIRepository.
+	// The secret is also copied to the flux-system namespace on the MCP cluster and is
+	// mounted into the source-controller.
+	// The secret must be of type kubernetes.io/opaque and store the PEM-encoded
+	// certificate/bundle under the ca.crt key.
+	// It can also contain tls.crt and tls.key keys for mTLS.
+	// (https://fluxcd.io/flux/components/source/ocirepositories/#mutual-tls-authentication)
+	// +optional
+	CertSecretRef string `json:"certSecretRef,omitempty"`
 }
 
 // FluxVersion defines a version of Flux that can be installed

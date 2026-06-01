@@ -89,6 +89,15 @@ func TestServiceProvider(t *testing.T) {
 			if err := wait.For(conditions.New(c.Client().Resources()).ResourcesFound(pullSecrets), wait.WithTimeout(2*time.Minute)); err != nil {
 				t.Errorf("pull secret not found: %v", err)
 			}
+			caSecret := &corev1.Secret{}
+			caSecret.SetName("sp-flux-custom-ca-cert")
+			caSecret.SetNamespace(tenantNamespace)
+			caSecrets := &corev1.SecretList{
+				Items: []corev1.Secret{*caSecret},
+			}
+			if err := wait.For(conditions.New(c.Client().Resources()).ResourcesFound(caSecrets), wait.WithTimeout(2*time.Minute)); err != nil {
+				t.Errorf("ca secret not found: %v", err)
+			}
 			return ctx
 		}).
 		Assess("ManagedControlPlane resources have been created", func(ctx context.Context, t *testing.T, c *envconf.Config) context.Context {
@@ -105,6 +114,15 @@ func TestServiceProvider(t *testing.T) {
 			}
 			if err := wait.For(conditions.New(mcp.Client().Resources()).ResourcesFound(list), wait.WithTimeout(2*time.Minute)); err != nil {
 				t.Errorf("image pull secret not found on control plane: %v", err)
+			}
+			caSecret := &corev1.Secret{}
+			caSecret.SetName("custom-ca-cert")
+			caSecret.SetNamespace("flux-system")
+			caSecrets := &corev1.SecretList{
+				Items: []corev1.Secret{*caSecret},
+			}
+			if err := wait.For(conditions.New(mcp.Client().Resources()).ResourcesFound(caSecrets), wait.WithTimeout(2*time.Minute)); err != nil {
+				t.Errorf("ca secret not found on control plane: %v", err)
 			}
 			return ctx
 		}).
@@ -225,7 +243,7 @@ func TestServiceProvider(t *testing.T) {
 			}
 			return ctx
 		}).
-		Assess("provider config update drops pull secrets", func(ctx context.Context, t *testing.T, c *envconf.Config) context.Context {
+		Assess("provider config update secrets", func(ctx context.Context, t *testing.T, c *envconf.Config) context.Context {
 			if err := v1alpha1.AddToScheme(c.Client().Resources().GetScheme()); err != nil {
 				t.Errorf("failed to add api types to client scheme: %s", err)
 				return ctx
@@ -238,6 +256,7 @@ func TestServiceProvider(t *testing.T) {
 			}
 			providerConfig.Spec.Versions[0].ChartPullSecret = ""
 			providerConfig.Spec.Versions[0].Values = nil
+			providerConfig.Spec.CertSecretRef = ""
 			if err := c.Client().Resources().Update(ctx, providerConfig); err != nil {
 				t.Errorf("failed to update provider config: %v", err)
 			}
@@ -257,7 +276,7 @@ func TestServiceProvider(t *testing.T) {
 
 			return ctx
 		}).
-		Assess("platform chart pull secret deleted", func(ctx context.Context, t *testing.T, c *envconf.Config) context.Context {
+		Assess("platform secrets deleted", func(ctx context.Context, t *testing.T, c *envconf.Config) context.Context {
 			tenantNamespace, err := libutils.StableMCPNamespace(mcpName, "default")
 			if err != nil {
 				t.Errorf("failed to get tenant namespace: %v", err)
@@ -268,11 +287,11 @@ func TestServiceProvider(t *testing.T) {
 				ResourceListN(spFluxSecrets, 0, klientresources.WithLabelSelector(
 					labels.FormatLabels(map[string]string{flux.LabelManagedBy: "service-provider-flux"}))),
 				wait.WithTimeout(2*time.Minute)); err != nil {
-				t.Errorf("orphaned chart pull secret is not deleted: %v", err)
+				t.Errorf("orphaned platform secret is not deleted: %v", err)
 			}
 			return ctx
 		}).
-		Assess("control plane image pull secrets deleted", func(ctx context.Context, t *testing.T, c *envconf.Config) context.Context {
+		Assess("control plane secrets deleted", func(ctx context.Context, t *testing.T, c *envconf.Config) context.Context {
 			mcp, err := clusterutils.MCPConfig(ctx, c, mcpName)
 			if err != nil {
 				t.Error(err)
@@ -283,7 +302,7 @@ func TestServiceProvider(t *testing.T) {
 				ResourceListN(spFluxSecrets, 0, klientresources.WithLabelSelector(
 					labels.FormatLabels(map[string]string{flux.LabelManagedBy: "service-provider-flux"}))),
 				wait.WithTimeout(2*time.Minute)); err != nil {
-				t.Errorf("orphaned image pull secret is not deleted: %v", err)
+				t.Errorf("orphaned secret is not deleted: %v", err)
 			}
 			return ctx
 		}).

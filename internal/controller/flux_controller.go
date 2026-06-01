@@ -149,10 +149,11 @@ func (r *FluxReconciler) createObjectManager(obj *apiv1alpha1.Flux, pc *apiv1alp
 	mcpCluster := flux.NewManagedCluster(clusters.MCPCluster, clusters.MCPCluster.RESTConfig(), fluxNamespace, flux.ManagedControlPlane)
 
 	// Sync image pull secrets from platform cluster to MCP
-	flux.ManagePullSecrets(mcpCluster, helmValues.ImagePullSecrets, flux.SecretCopyConfig{
+	flux.ManageSecrets(mcpCluster, helmValues.ImagePullSecrets, flux.SecretCopyConfig{
 		SourceClient:    r.PlatformCluster.Client(),
 		SourceNamespace: r.PodNamespace,
 		TargetNamespace: fluxNamespace,
+		TargetType:      corev1.SecretTypeDockerConfigJson,
 	})
 
 	// Sync chart pull secret within platform cluster from pod namespace to tenant namespace
@@ -162,13 +163,48 @@ func (r *FluxReconciler) createObjectManager(obj *apiv1alpha1.Flux, pc *apiv1alp
 		if err != nil {
 			return nil, fmt.Errorf("error generating secret name: %w", err)
 		}
-		flux.ManagePullSecrets(platformCluster, []corev1.LocalObjectReference{
+		flux.ManageSecrets(platformCluster, []corev1.LocalObjectReference{
 			{Name: fluxVersion.ChartPullSecret},
 		}, flux.SecretCopyConfig{
 			SourceClient:    r.PlatformCluster.Client(),
 			SourceNamespace: r.PodNamespace,
 			TargetNamespace: tenantNamespace,
 			TargetName:      prefixedChartPullSecret,
+			TargetType:      corev1.SecretTypeDockerConfigJson,
+		})
+	}
+
+	var prefixedCertSecret string
+	if pc.Spec.CertSecretRef != "" {
+		// add custom ca volume and volumeMount to helm values
+		fluxVersion.Values, err = flux.AddCaToHelmValues(fluxVersion.Values, pc.Spec.CertSecretRef)
+		if err != nil {
+			return nil, fmt.Errorf("failed to add ca volume to helm values: %w", err)
+		}
+
+		// Sync image pull secrets from platform cluster to MCP
+		flux.ManageSecrets(mcpCluster, []corev1.LocalObjectReference{
+			{Name: pc.Spec.CertSecretRef},
+		}, flux.SecretCopyConfig{
+			SourceClient:    r.PlatformCluster.Client(),
+			SourceNamespace: r.PodNamespace,
+			TargetNamespace: fluxNamespace,
+			TargetType:      corev1.SecretTypeOpaque,
+		})
+
+		// Sync ca secret within platform cluster from pod namespace to tenant namespace
+		prefixedCertSecret, err = flux.PrefixSecretName(pc.Spec.CertSecretRef)
+		if err != nil {
+			return nil, fmt.Errorf("error generating secret name: %w", err)
+		}
+		flux.ManageSecrets(platformCluster, []corev1.LocalObjectReference{
+			{Name: pc.Spec.CertSecretRef},
+		}, flux.SecretCopyConfig{
+			SourceClient:    r.PlatformCluster.Client(),
+			SourceNamespace: r.PodNamespace,
+			TargetNamespace: tenantNamespace,
+			TargetName:      prefixedCertSecret,
+			TargetType:      corev1.SecretTypeOpaque,
 		})
 	}
 
@@ -177,6 +213,7 @@ func (r *FluxReconciler) createObjectManager(obj *apiv1alpha1.Flux, pc *apiv1alp
 		Cluster:             platformCluster,
 		MCPNamespace:        fluxNamespace,
 		ChartPullSecretName: prefixedChartPullSecret,
+		CertSecretName:      prefixedCertSecret,
 		Obj:                 obj,
 		ProviderConfig:      pc,
 		ClusterContext:      clusters,
@@ -193,8 +230,15 @@ func (r *FluxReconciler) createObjectManager(obj *apiv1alpha1.Flux, pc *apiv1alp
 		{
 			Name: prefixedChartPullSecret,
 		},
+		{
+			Name: prefixedCertSecret,
+		},
 	})
-	controlPlaneCleaner := flux.NewSecretCleaner(mcpCluster, fluxNamespace, helmValues.ImagePullSecrets)
+
+	cpSecretsToKeep := make([]corev1.LocalObjectReference, 0, 1+len(helmValues.ImagePullSecrets))
+	cpSecretsToKeep = append(cpSecretsToKeep, corev1.LocalObjectReference{Name: pc.Spec.CertSecretRef})
+	cpSecretsToKeep = append(cpSecretsToKeep, helmValues.ImagePullSecrets...)
+	controlPlaneCleaner := flux.NewSecretCleaner(mcpCluster, fluxNamespace, cpSecretsToKeep)
 
 	mgr.AddCleaner(platformCleaner)
 	mgr.AddCleaner(controlPlaneCleaner)
