@@ -393,7 +393,7 @@ func requestOnboardingClusterAccess(ctx context.Context, mgr clusteraccess.Manag
 func patchOnboardingClient(ctx context.Context, platformCluster *clusters.Cluster, onboardingCluster *clusters.Cluster, cmdSuffix string) (*clusters.Cluster, error) {
 	onboardingAr := &clustersv1alpha1.AccessRequest{
 		ObjectMeta: metav1.ObjectMeta{
-			Name:      clusteraccess.StableRequestNameFromLocalName("fooservice.foo.services.open-control-plane.io", cmdSuffix),
+			Name:      clusteraccess.StableRequestNameFromLocalName("flux.flux.services.openmcp.cloud", cmdSuffix),
 			Namespace: os.Getenv("POD_NAMESPACE"),
 		},
 	}
