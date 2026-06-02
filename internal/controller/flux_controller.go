@@ -42,7 +42,7 @@ import (
 const conditionReasonError = "ReconcileError"
 
 // ErrManagedResources is an end-user facing error if errors are present inside Flux.Status.ManagedResources
-var ErrManagedResources error = errors.New("resources contain reconcile errors")
+var ErrManagedResources = errors.New("resources contain reconcile errors")
 
 // FluxReconciler reconciles a Flux object
 type FluxReconciler struct {
