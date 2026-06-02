@@ -146,7 +146,10 @@ metadata:
 spec:
   # Optional: Reconciliation interval
   pollInterval: "5m"
-  # Optional: Secret for custom CA certificate/bundle (will be copied to ManagedControlPlane)
+  # Optional: Secret for custom CA certificate/bundle (will be copied to OpenControlPlane)
+  # CA certificate/bundle must be stored in key ca.crt
+  # Optionally: keys tls.key and tls.crt can be set for mTLS
+  # (https://fluxcd.io/flux/components/source/ocirepositories/#mutual-tls-authentication)
   certSecretRef: "custom-ca-cert"
   # The Flux versions that can be installed
   versions:

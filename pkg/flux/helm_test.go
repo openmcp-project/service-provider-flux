@@ -15,6 +15,7 @@ package flux
 
 import (
 	"encoding/json"
+	"strings"
 	"testing"
 
 	"github.com/stretchr/testify/assert"
@@ -132,32 +133,26 @@ func TestExtractHelmValues(t *testing.T) {
 }
 
 func TestAddCaToHelmValues(t *testing.T) {
-	const (
-		volumeName = "sp-flux-custom-ca"
-		secretName = "custom-ca-secret"
-		secretKey  = "ca.crt"
-		secretPath = "sp-flux-custom-ca.crt"
-		mountPath  = "/etc/ssl/certs/sp-flux-custom-ca.crt"
-		subPath    = "sp-flux-custom-ca.crt"
-	)
-
 	expectedCaVolume := corev1.Volume{
-		Name: volumeName,
+		Name: customCaVolumeName,
 		VolumeSource: corev1.VolumeSource{
 			Secret: &corev1.SecretVolumeSource{
-				SecretName: secretName,
+				SecretName: "custom-ca-secret",
 				Items: []corev1.KeyToPath{{
-					Key:  secretKey,
-					Path: secretPath,
+					Key:  "ca.crt",
+					Path: "ca.crt",
 				}},
 			},
 		},
 	}
 	expectedCaVolumeMount := corev1.VolumeMount{
-		Name:      volumeName,
+		Name:      customCaVolumeName,
 		ReadOnly:  true,
-		MountPath: mountPath,
-		SubPath:   subPath,
+		MountPath: customCaPath,
+	}
+	expectedCaEnvVar := corev1.EnvVar{
+		Name:  "SSL_CERT_DIR",
+		Value: strings.Join(append(certDirectories, customCaPath), ":"),
 	}
 
 	tests := []struct {
@@ -167,14 +162,15 @@ func TestAddCaToHelmValues(t *testing.T) {
 		checkValue func(t *testing.T, out *apiextensionsv1.JSON)
 	}{
 		{
-			name:   "Adds SourceController Volumes and VolumeMounts when no helm values are set",
+			name:   "Adds controller volumes, volumeMounts and extraEnv when no helm values are set",
 			values: nil,
 			checkValue: func(t *testing.T, out *apiextensionsv1.JSON) {
 				require.NotNil(t, out)
 
 				expected := buildHelmValues(t,
-					withSourceControllerVolumes(expectedCaVolume),
-					withSourceControllerVolumeMounts(expectedCaVolumeMount),
+					withAllControllerVolumes(expectedCaVolume),
+					withAllControllerVolumeMounts(expectedCaVolumeMount),
+					withAllControllerExtraEnv(expectedCaEnvVar),
 				)
 
 				assert.JSONEq(t, string(expected.Raw), string(out.Raw))
@@ -184,14 +180,14 @@ func TestAddCaToHelmValues(t *testing.T) {
 			name: "Preserves existing helm values and adds CA entries",
 			values: buildHelmValues(t,
 				withRootField("namespace", "other-namespace"),
-				withSourceControllerField(
+				withAllControllerField(
 					"resources", map[string]any{
 						"limits": map[string]any{
 							"memory": "256Mi",
 						},
 					}),
-				withSourceControllerVolumes(corev1.Volume{Name: "existing-volume"}),
-				withSourceControllerVolumeMounts(
+				withAllControllerVolumes(corev1.Volume{Name: "existing-volume"}),
+				withAllControllerVolumeMounts(
 					corev1.VolumeMount{Name: "existing-volume", MountPath: "/tmp/existing"}),
 			),
 			checkValue: func(t *testing.T, out *apiextensionsv1.JSON) {
@@ -199,14 +195,17 @@ func TestAddCaToHelmValues(t *testing.T) {
 
 				expected := buildHelmValues(t,
 					withRootField("namespace", "other-namespace"),
-					withSourceControllerField("resources", map[string]any{
+					withAllControllerField("resources", map[string]any{
 						"limits": map[string]any{"memory": "256Mi"},
 					}),
-					withSourceControllerVolumes(
+					withAllControllerVolumes(expectedCaVolume),
+					withAllControllerVolumeMounts(expectedCaVolumeMount),
+					withAllControllerExtraEnv(expectedCaEnvVar),
+					withAllControllerVolumes(
 						corev1.Volume{Name: "existing-volume"},
 						expectedCaVolume,
 					),
-					withSourceControllerVolumeMounts(
+					withAllControllerVolumeMounts(
 						corev1.VolumeMount{Name: "existing-volume", MountPath: "/tmp/existing"},
 						expectedCaVolumeMount,
 					),
@@ -217,19 +216,20 @@ func TestAddCaToHelmValues(t *testing.T) {
 		{
 			name: "Removes VolumeMounts with same name and/or same MountPath",
 			values: buildHelmValues(t,
-				withSourceControllerVolumeMounts(
+				withAllControllerVolumeMounts(
 					corev1.VolumeMount{Name: "volume1", MountPath: "/tmp/volume1"},
-					corev1.VolumeMount{Name: "volume2", MountPath: mountPath},
-					corev1.VolumeMount{Name: volumeName, MountPath: "/tmp/existing"},
-					corev1.VolumeMount{Name: volumeName, MountPath: mountPath},
+					corev1.VolumeMount{Name: "volume2", MountPath: customCaPath},
+					corev1.VolumeMount{Name: customCaVolumeName, MountPath: "/tmp/existing"},
+					corev1.VolumeMount{Name: customCaVolumeName, MountPath: customCaPath},
 				),
 			),
 			checkValue: func(t *testing.T, out *apiextensionsv1.JSON) {
 				require.NotNil(t, out)
 
 				expected := buildHelmValues(t,
-					withSourceControllerVolumes(expectedCaVolume),
-					withSourceControllerVolumeMounts(
+					withAllControllerVolumes(expectedCaVolume),
+					withAllControllerExtraEnv(expectedCaEnvVar),
+					withAllControllerVolumeMounts(
 						corev1.VolumeMount{Name: "volume1", MountPath: "/tmp/volume1"},
 						expectedCaVolumeMount,
 					),
@@ -241,8 +241,8 @@ func TestAddCaToHelmValues(t *testing.T) {
 		{
 			name: "Removes Volumes with same name",
 			values: buildHelmValues(t,
-				withSourceControllerVolumes(
-					corev1.Volume{Name: volumeName},
+				withAllControllerVolumes(
+					corev1.Volume{Name: customCaVolumeName},
 					corev1.Volume{Name: "volume1"},
 				),
 			),
@@ -250,12 +250,34 @@ func TestAddCaToHelmValues(t *testing.T) {
 				require.NotNil(t, out)
 
 				expected := buildHelmValues(t,
-					withSourceControllerVolumes(
+					withAllControllerVolumes(
 						corev1.Volume{Name: "volume1"},
-						expectedCaVolume),
-					withSourceControllerVolumeMounts(
-						expectedCaVolumeMount,
+						expectedCaVolume,
 					),
+					withAllControllerVolumeMounts(expectedCaVolumeMount),
+					withAllControllerExtraEnv(expectedCaEnvVar),
+				)
+				assert.JSONEq(t, string(expected.Raw), string(out.Raw))
+			},
+		},
+		{
+			name: "Removes EnvVars with same name",
+			values: buildHelmValues(t,
+				withAllControllerExtraEnv(
+					corev1.EnvVar{Name: "SSL_CERT_DIR"},
+					corev1.EnvVar{Name: "ANOTHER_ENV_VAR"},
+				),
+			),
+			checkValue: func(t *testing.T, out *apiextensionsv1.JSON) {
+				require.NotNil(t, out)
+
+				expected := buildHelmValues(t,
+					withAllControllerExtraEnv(
+						corev1.EnvVar{Name: "ANOTHER_ENV_VAR"},
+						expectedCaEnvVar,
+					),
+					withAllControllerVolumes(expectedCaVolume),
+					withAllControllerVolumeMounts(expectedCaVolumeMount),
 				)
 				assert.JSONEq(t, string(expected.Raw), string(out.Raw))
 			},
@@ -266,35 +288,44 @@ func TestAddCaToHelmValues(t *testing.T) {
 			wantErr: "failed to unmarshal helm values",
 		},
 		{
-			name: "returns error for invalid sourceController json",
+			name: "returns error for invalid controller json",
 			values: mustMarshalJSON(t, map[string]any{
-				"sourceController": "not-an-object",
+				"helmController": "not-an-object",
 			}),
-			wantErr: "failed to unmarshal sourceController",
+			wantErr: "failed to unmarshal helmController",
 		},
 		{
-			name: "returns error for invalid sourceController.volumes json",
+			name: "returns error for invalid controller.volumes json",
 			values: mustMarshalJSON(t, map[string]any{
-				"sourceController": map[string]any{
+				"helmController": map[string]any{
 					"volumes": "not-a-list",
 				},
 			}),
-			wantErr: "failed to unmarshal sourceController.volumes",
+			wantErr: "failed to unmarshal helmController.volumes",
 		},
 		{
-			name: "returns error for invalid sourceController.volumeMounts json",
+			name: "returns error for invalid controller.volumeMounts json",
 			values: mustMarshalJSON(t, map[string]any{
-				"sourceController": map[string]any{
+				"helmController": map[string]any{
 					"volumeMounts": "not-a-list",
 				},
 			}),
-			wantErr: "failed to unmarshal sourceController.volumeMounts",
+			wantErr: "failed to unmarshal helmController.volumeMounts",
+		},
+		{
+			name: "returns error for invalid controller.extraEnv json",
+			values: mustMarshalJSON(t, map[string]any{
+				"helmController": map[string]any{
+					"extraEnv": "not-a-list",
+				},
+			}),
+			wantErr: "failed to unmarshal helmController.extraEnv",
 		},
 	}
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			out, err := AddCaToHelmValues(tt.values, secretName)
+			out, err := AddCaToHelmValues(tt.values, "custom-ca-secret")
 			if tt.wantErr != "" {
 				require.Error(t, err)
 				assert.Contains(t, err.Error(), tt.wantErr)
@@ -311,8 +342,8 @@ func TestAddCaToHelmValues(t *testing.T) {
 }
 
 type helmValues struct {
-	root             map[string]any
-	sourceController map[string]any
+	root        map[string]any
+	controllers map[string]map[string]any
 }
 
 type helmValuesOption func(*helmValues)
@@ -321,16 +352,18 @@ func buildHelmValues(t *testing.T, opts ...helmValuesOption) *apiextensionsv1.JS
 	t.Helper()
 
 	builder := &helmValues{
-		root:             map[string]any{},
-		sourceController: map[string]any{},
+		root:        map[string]any{},
+		controllers: map[string]map[string]any{},
 	}
 
 	for _, opt := range opts {
 		opt(builder)
 	}
 
-	if len(builder.sourceController) > 0 {
-		builder.root["sourceController"] = builder.sourceController
+	for controller, values := range builder.controllers {
+		if len(values) > 0 {
+			builder.root[controller] = values
+		}
 	}
 
 	return mustMarshalJSON(t, builder.root)
@@ -342,21 +375,44 @@ func withRootField(key string, value any) helmValuesOption {
 	}
 }
 
-func withSourceControllerField(key string, value any) helmValuesOption {
+func withAllControllerField(key string, value any) helmValuesOption {
 	return func(builder *helmValues) {
-		builder.sourceController[key] = value
+		for _, controller := range fluxControllers {
+			withControllerField(controller, key, value)(builder)
+		}
 	}
 }
 
-func withSourceControllerVolumes(volumes ...corev1.Volume) helmValuesOption {
+func withControllerField(controller string, key string, value any) helmValuesOption {
 	return func(builder *helmValues) {
-		builder.sourceController["volumes"] = volumes
+		if _, ok := builder.controllers[controller]; !ok {
+			builder.controllers[controller] = map[string]any{}
+		}
+		builder.controllers[controller][key] = value
 	}
 }
 
-func withSourceControllerVolumeMounts(volumeMounts ...corev1.VolumeMount) helmValuesOption {
+func withAllControllerVolumes(volumes ...corev1.Volume) helmValuesOption {
 	return func(builder *helmValues) {
-		builder.sourceController["volumeMounts"] = volumeMounts
+		for _, controller := range fluxControllers {
+			withControllerField(controller, "volumes", volumes)(builder)
+		}
+	}
+}
+
+func withAllControllerVolumeMounts(volumeMounts ...corev1.VolumeMount) helmValuesOption {
+	return func(builder *helmValues) {
+		for _, controller := range fluxControllers {
+			withControllerField(controller, "volumeMounts", volumeMounts)(builder)
+		}
+	}
+}
+
+func withAllControllerExtraEnv(envVars ...corev1.EnvVar) helmValuesOption {
+	return func(builder *helmValues) {
+		for _, controller := range fluxControllers {
+			withControllerField(controller, "extraEnv", envVars)(builder)
+		}
 	}
 }
 

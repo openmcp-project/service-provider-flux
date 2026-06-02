@@ -72,10 +72,10 @@ metadata:
 spec:
   versions:
       # Secret with single PEM-encoded custom CA root certificate or bundle stored
-      # on the ca.crt key.
+      # in the ca.crt key.
       # Must exist in the service provider's namespace on the platform cluster
       # Will be copied to the tenant namespace on the platform cluster and to the
-      # flux-system namespace on the ManagedControlPlane.
+      # flux-system namespace on the OpenControlPlane.
       certSecretRef: "custom-ca-cert"
 
     - version: "2.8.3"
@@ -126,10 +126,12 @@ kubectl create secret docker-registry image-registry-credentials \
   --docker-username=<username> \
   --docker-password=<password>
 
-# Custom CA certificate secret (for OCI registry connection)
+# Custom CA certificate secret with optional mTLS key and cert (for OCI registry connection)
 kubectl create secret generic custom-ca-cert \
   --namespace <service-provider-namespace> \
-  --ca.crt=<ca-cert>
+  --ca.crt=<ca-cert> \
+  --tls.key=<optional-mtls-key> \
+  --tls.crt=<optional-mtls-crt> 
 ```
 
 ## How It Works
@@ -145,12 +147,12 @@ kubectl create secret generic custom-ca-cert \
 1. The secret specified in `certSecretRef` is copied from the service provider's namespace to the tenant namespace on the platform cluster
 2. The `OCIRepository` resource references this secret via `spec.certSecretRef`
 3. The Flux Source Controller uses this secret to establish a trusted connection with the OCI registry when pulling the Helm chart
-4. The secret is also copied to the MCP cluster flux-system namespace and mounted into the Flux Source Controller
-by adding a volume and volumeMount in to the helm values. Flux in the target MCP hence is also able to verify 
-self-signed certificates used by the OCI repository.  
+4. The secret is also copied to the MCP cluster flux-system namespace and mounted into the all Flux controllers
+by adding a volume, volumeMount and envVar to the helm values. Flux in the target OpenControlPlane hence is also able to verify 
+certificates signed with the custom CA certificate. 
 
 > [!CAUTION]
-> The custom CA certificate is not propagated to the MCP cluster nodes. If you want to pull images from the same OCI registry you must add the custom CA certificate to the MCP cluster nodes yourself.
+> The custom CA certificate is not propagated to the OpenControlPlane cluster nodes. If you want to pull images from the same OCI registry you must add the custom CA certificate to thecluster nodes yourself.
 
 > [!NOTE]
 > The secret referenced in certSecretRef can also contain two additional keys tls.key and tls.crt which will be
@@ -174,7 +176,7 @@ metadata:
 spec:
   chartUrl: "oci://harbor.corp.internal/charts/flux2"
   chartPullSecret: "harbor-credentials"
-  # Secret containing custom ca cert - will be copied to ManagedControlPlane
+  # Secret containing custom ca cert under ca.crt - will be copied to ManagedControlPlane
   certSecretRef: "harbor-corp-internal-ca-cert"
   values:
     # Image pull secrets - will be copied to ManagedControlPlane
