@@ -1,4 +1,4 @@
-apiVersion: flux.services.openmcp.cloud/v1alpha1
+apiVersion: flux.services.open-control-plane.io/v1alpha1
 kind: ProviderConfig
 metadata:
   name: flux
