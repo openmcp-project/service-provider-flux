@@ -4,6 +4,23 @@
 
 A service provider for managing [FluxCD](https://fluxcd.io/) deployments within a ManagedControlPlane environment. This provider enables GitOps capabilities by automatically installing and configuring Flux on managed control planes.
 
+## Quality Criteria
+
+[![Quality: Incubating](https://img.shields.io/badge/Quality-Incubating-3d9970?style=flat-square&labelColor=555)](https://open-control-plane.io/developers/serviceprovider/quality-criteria)
+
+| Criterion                         | Status |
+| --------------------------------- | :----: |
+| Deletion behaviour                |   ⚠️    |
+| Status reporting & error messages |   ✅    |
+| Operation annotations             |   ❌    |
+| API stability policy              |   ✅    |
+| Custom CA support                 |   ⚠️    |
+| Release artifacts (image + OCM)   |   ✅    |
+| Testing                           |   ✅    |
+| Ownership and maintenance docs    |   ⚠️    |
+
+See the [OpenControlPlane Quality Criteria](https://open-control-plane.io/developers/serviceprovider/quality-criteria) for definitions.
+
 ## 📖 Overview
 
 The Flux service provider automates the lifecycle management of Flux installations, including:
