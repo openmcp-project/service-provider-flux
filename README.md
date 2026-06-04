@@ -8,16 +8,16 @@ A service provider for managing [FluxCD](https://fluxcd.io/) deployments within 
 
 [![Quality: Incubating](https://img.shields.io/badge/Quality-Incubating-3d9970?style=flat-square&labelColor=555)](https://open-control-plane.io/developers/serviceprovider/quality-criteria)
 
-| Criterion                         | Status | Notes |
-| --------------------------------- | :----: | ----- |
-| Deletion behaviour                |   ⚠️    | Finalizer is wired up; blocking deletion when Flux-managed CRs still exist is not verified. |
-| Status reporting & error messages |   ✅    |       |
-| Operation annotations             |   ❌    | `openmcp.cloud/operation` (pause / force-reconcile) annotations are not honoured. |
-| API stability policy              |   ✅    |       |
+| Criterion                         | Status  | Notes                                                                                                        |
+| --------------------------------- | :----:  | ------------------------------------------------------------------------------------------------------------ |
+| Deletion behaviour                |   ⚠️    | Finalizer is wired up; blocking deletion when Flux-managed CRs still exist is not verified.                  |
+| Status reporting & error messages |   ✅    |                                                                                                              |
+| Operation annotations             |   ❌    | `openmcp.cloud/operation` (pause / force-reconcile) annotations are not honoured.                            |
+| API stability policy              |   ✅    |                                                                                                              |
 | Custom CA support                 |   ⚠️    | Private-registry pull secrets supported; custom CA bundle propagation to Flux components is not implemented. |
-| Release artifacts (image + OCM)   |   ✅    |       |
-| Testing                           |   ✅    |       |
-| Ownership and maintenance docs    |   ✅    |       |
+| Release artifacts (image + OCM)   |   ✅    |                                                                                                              |
+| Testing                           |   ✅    |                                                                                                              |
+| Ownership and maintenance docs    |   ✅    |                                                                                                              |
 
 See the [OpenControlPlane Quality Criteria](https://open-control-plane.io/developers/serviceprovider/quality-criteria) for definitions.
 
@@ -145,8 +145,8 @@ spec:
   version: "2.8.3"
 ```
 
-| Field | Type | Description |
-|-------|------|-------------|
+| Field          | Type   | Description                    |
+| -------------- | ------ | ------------------------------ |
 | `spec.version` | string | The version of Flux to install |
 
 Note that any version that should be available to users have to be defined in the `ProviderConfig`.
@@ -187,20 +187,20 @@ spec:
           tag: v1.8.1
 ```
 
-| Field | Type | Description |
-|-------|------|-------------|
+| Field               | Type     | Description                                    |
+| ------------------- | -------- | ---------------------------------------------- |
 | `spec.pollInterval` | duration | How often to reconcile resources (default: 1m) |
-| `spec.versions` | array | The versions of Flux that can be installed |
+| `spec.versions`     | array    | The versions of Flux that can be installed     |
 
 A version item is defined as follows:
 
-| Field | Type | Description |
-|-------|------|-------------|
-| `version` | string | The Flux version that this item defines |
-| `chartVersion` | string | The Flux Helm chart version to install |
-| `chartUrl` | string | OCI registry URL for the Flux Helm chart |
+| Field             | Type   | Description                                   |
+| ----------------- | ------ | --------------------------------------------- |
+| `version`         | string | The Flux version that this item defines       |
+| `chartVersion`    | string | The Flux Helm chart version to install        |
+| `chartUrl`        | string | OCI registry URL for the Flux Helm chart      |
 | `chartPullSecret` | string | Secret name for chart registry authentication |
-| `values` | object | Custom Helm values for Flux deployment |
+| `values`          | object | Custom Helm values for Flux deployment        |
 
 ## 🔐 Air-Gapped Environments
 
@@ -208,14 +208,14 @@ For air-gapped or enterprise environments, see the [Image Localization Guide](do
 
 ## 🔧 Development Tasks
 
-| Command | Description |
-|---------|-------------|
-| `task build` | Build the binary |
-| `task build:img:build` | Build the container image |
-| `task test` | Run unit tests |
-| `task test-e2e` | Run end-to-end tests |
-| `task generate` | Generate CRDs and code |
-| `task validate` | Run linters and formatters |
+| Command                | Description                |
+| ---------------------- | -------------------------- |
+| `task build`           | Build the binary           |
+| `task build:img:build` | Build the container image  |
+| `task test`            | Run unit tests             |
+| `task test-e2e`        | Run end-to-end tests       |
+| `task generate`        | Generate CRDs and code     |
+| `task validate`        | Run linters and formatters |
 
 ## 🤝 Support, Feedback, Contributing
 
