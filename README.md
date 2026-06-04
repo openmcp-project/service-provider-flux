@@ -17,7 +17,7 @@ A service provider for managing [FluxCD](https://fluxcd.io/) deployments within 
 | Custom CA support                 |   ⚠️    |
 | Release artifacts (image + OCM)   |   ✅    |
 | Testing                           |   ✅    |
-| Ownership and maintenance docs    |   ⚠️    |
+| Ownership and maintenance docs    |   ✅    |
 
 See the [OpenControlPlane Quality Criteria](https://open-control-plane.io/developers/serviceprovider/quality-criteria) for definitions.
 
