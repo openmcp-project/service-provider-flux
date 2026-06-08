@@ -247,7 +247,7 @@ Verify configmaps are copied to the correct namespaces:
 
 ```bash
 # ManagedControlPlane - flux-system namespace
-kubectl get cm -n flux-system | grep -E "<configmap-name>"
+kubectl get cm -n flux-system | grep -E "ca"
 ```
 
 ### Check OCIRepository Secret Reference

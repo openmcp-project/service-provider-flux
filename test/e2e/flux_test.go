@@ -31,7 +31,7 @@ import (
 
 const (
 	mcpName               = "test-mcp"
-	caConfigMapName       = "flux-ca-bundle"
+	mcpCAConfigMapName    = "custom-ca-bundle"
 	caConfigMapNameUpdate = "flux-ca-bundle-update"
 	caConfigMapKey        = "ca.crt"
 	caVolumeName          = "custom-ca-bundle"
@@ -118,7 +118,7 @@ func TestServiceProvider(t *testing.T) {
 			}
 
 			caBundleConfigMap := &corev1.ConfigMap{}
-			caBundleConfigMap.SetName(caConfigMapName)
+			caBundleConfigMap.SetName(mcpCAConfigMapName)
 			caBundleConfigMap.SetNamespace("flux-system")
 			cmList := &corev1.ConfigMapList{
 				Items: []corev1.ConfigMap{*caBundleConfigMap},
@@ -350,21 +350,14 @@ func TestServiceProvider(t *testing.T) {
 				return ctx
 			}
 
-			oldCaConfigMap := &corev1.ConfigMap{}
-			oldCaConfigMap.SetName(caConfigMapName)
-			oldCaConfigMap.SetNamespace("flux-system")
-			if err := wait.For(conditions.New(mcp.Client().Resources()).ResourceDeleted(oldCaConfigMap), wait.WithTimeout(2*time.Minute)); err != nil {
-				t.Errorf("orphaned ca configmap is not deleted: %v", err)
-			}
-
-			newCaConfigMap := &corev1.ConfigMap{}
-			newCaConfigMap.SetName(caConfigMapNameUpdate)
-			newCaConfigMap.SetNamespace("flux-system")
+			mcpCaConfigMap := &corev1.ConfigMap{}
+			mcpCaConfigMap.SetName(mcpCAConfigMapName)
+			mcpCaConfigMap.SetNamespace("flux-system")
 			list := &corev1.ConfigMapList{
-				Items: []corev1.ConfigMap{*newCaConfigMap},
+				Items: []corev1.ConfigMap{*mcpCaConfigMap},
 			}
 			if err := wait.For(conditions.New(mcp.Client().Resources()).ResourcesFound(list), wait.WithTimeout(2*time.Minute)); err != nil {
-				t.Errorf("updated ca configmap not found on control plane: %v", err)
+				t.Errorf("ca configmap not found on control plane: %v", err)
 			}
 			return ctx
 		}).

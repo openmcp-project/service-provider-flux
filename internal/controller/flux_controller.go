@@ -187,6 +187,7 @@ func (r *FluxReconciler) createObjectManager(obj *apiv1alpha1.Flux, pc *apiv1alp
 			SourceClient:    r.PlatformCluster.Client(),
 			SourceNamespace: r.PodNamespace,
 			TargetNamespace: fluxNamespace,
+			TargetName:      flux.CustomCABundleConfigMapName,
 		})
 
 	}
@@ -217,7 +218,7 @@ func (r *FluxReconciler) createObjectManager(obj *apiv1alpha1.Flux, pc *apiv1alp
 
 	configMapsToKeep := []corev1.LocalObjectReference{}
 	if pc.Spec.CaBundleRef != nil {
-		configMapsToKeep = append(configMapsToKeep, pc.Spec.CaBundleRef.LocalObjectReference)
+		configMapsToKeep = append(configMapsToKeep, corev1.LocalObjectReference{Name: flux.CustomCABundleConfigMapName})
 	}
 
 	controlPlaneConfigMapCleaner := flux.NewConfigMapCleaner(mcpCluster, fluxNamespace, configMapsToKeep)

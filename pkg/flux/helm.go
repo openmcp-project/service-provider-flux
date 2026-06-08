@@ -24,10 +24,17 @@ import (
 )
 
 const (
+	// customCaVolumeName is the name of the custom ca volume and volume mount
 	customCaVolumeName = "custom-ca-bundle"
-	customCaPath       = "/etc/open-control-plane/custom-ca"
+
+	// customCaPath is the path the ca bundle will be mounted into
+	customCaPath = "/etc/open-control-plane/custom-ca"
+
+	// CustomCABundleConfigMapName is the fixed name for the copied CA bundle ConfigMap on the MCP cluster.
+	CustomCABundleConfigMapName = "custom-ca-bundle"
 )
 
+// certDirectories contains a list of places where the default system certs are stored in addition to caBundleMountDir
 // from x509 go lib (https://github.com/golang/go/blob/015343854b5d9e2829481df30dbcae2ca6682d25/src/crypto/x509/root_linux.go)
 var certDirectories = []string{
 	"/etc/ssl/certs",
@@ -82,7 +89,9 @@ func AddCaToHelmValues(values *apiextensionsv1.JSON, configMap *corev1.ConfigMap
 		Name: customCaVolumeName,
 		VolumeSource: corev1.VolumeSource{
 			ConfigMap: &corev1.ConfigMapVolumeSource{
-				LocalObjectReference: configMap.LocalObjectReference,
+				LocalObjectReference: corev1.LocalObjectReference{
+					Name: CustomCABundleConfigMapName,
+				},
 				Items: []corev1.KeyToPath{
 					{
 						Key:  configMap.Key,

@@ -142,7 +142,7 @@ func TestAddCaToHelmValues(t *testing.T) {
 		Name: customCaVolumeName,
 		VolumeSource: corev1.VolumeSource{
 			ConfigMap: &corev1.ConfigMapVolumeSource{
-				LocalObjectReference: corev1.LocalObjectReference{Name: "custom-ca-configmap"},
+				LocalObjectReference: corev1.LocalObjectReference{Name: CustomCABundleConfigMapName},
 				Items: []corev1.KeyToPath{{
 					Key:  "ca.crt",
 					Path: "ca.crt",
