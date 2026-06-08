@@ -8,16 +8,16 @@ A service provider for managing [FluxCD](https://fluxcd.io/) deployments within 
 
 [![Quality: Incubating](https://img.shields.io/badge/Quality-Incubating-3d9970?style=flat-square&labelColor=555)](https://open-control-plane.io/developers/serviceprovider/quality-criteria)
 
-| Criterion                         | Status  | Notes                                                                                                        |
-| --------------------------------- | :----:  | ------------------------------------------------------------------------------------------------------------ |
-| Deletion behaviour                |   ⚠️    | Finalizer is wired up; blocking deletion when Flux-managed CRs still exist is not verified.                  |
-| Status reporting & error messages |   ✅    |                                                                                                              |
-| Operation annotations             |   ❌    | `openmcp.cloud/operation` (pause / force-reconcile) annotations are not honoured.                            |
-| API stability policy              |   ✅    |                                                                                                              |
-| Custom CA support                 |   ⚠️    | Private-registry pull secrets supported; custom CA bundle propagation to Flux components is not implemented. |
-| Release artifacts (image + OCM)   |   ✅    |                                                                                                              |
-| Testing                           |   ✅    |                                                                                                              |
-| Ownership and maintenance docs    |   ✅    |                                                                                                              |
+| Criterion                         | Status  | Notes                                                                                                                                                                                                                                                                       |
+| --------------------------------- | :----:  | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Deletion behaviour                |   ⚠️    | A finalizer ensures the Service Provider managed resources like Flux' `OCIRepository` and `HelmRelease` are cleaned-up. But there is no behaviour that ensures deletion is blocked if custom resources (aka Flux' `GitRepository` objects) in a `ControlPlane` still exist. |
+| Status reporting & error messages |   ✅    |                                                                                                                                                                                                                                                                             |
+| Operation annotations             |   ❌    | `openmcp.cloud/operation` (pause / force-reconcile) annotations are not honoured.                                                                                                                                                                                           |
+| API stability policy              |   ✅    |                                                                                                                                                                                                                                                                             |
+| Custom CA support                 |   ⚠️    | Private-registry pull secrets supported; custom CA bundle propagation to Flux components is not implemented.                                                                                                                                                                |
+| Release artifacts (image + OCM)   |   ✅    |                                                                                                                                                                                                                                                                             |
+| Testing                           |   ✅    |                                                                                                                                                                                                                                                                             |
+| Ownership and maintenance docs    |   ✅    |                                                                                                                                                                                                                                                                             |
 
 See the [OpenControlPlane Quality Criteria](https://open-control-plane.io/developers/serviceprovider/quality-criteria) for definitions.
 
