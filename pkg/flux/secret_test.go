@@ -34,8 +34,8 @@ import (
 	"github.com/openmcp-project/service-provider-flux/pkg/testutils"
 )
 
-func TestManageSecrets(t *testing.T) {
-	sourcePullSecret := &corev1.Secret{
+func TestManagePullSecrets(t *testing.T) {
+	sourceSecret := &corev1.Secret{
 		ObjectMeta: metav1.ObjectMeta{
 			Name:      "test-pull-secret",
 			Namespace: "source-ns",
@@ -45,25 +45,13 @@ func TestManageSecrets(t *testing.T) {
 		},
 		Type: corev1.SecretTypeDockerConfigJson,
 	}
-	sourceCaSecret := &corev1.Secret{
-		ObjectMeta: metav1.ObjectMeta{
-			Name:      "test-ca-secret",
-			Namespace: "source-ns",
-		},
-		Data: map[string][]byte{
-			"ca.crt": []byte("data"),
-		},
-		Type: corev1.SecretTypeOpaque,
-	}
-	fakeCluster := testutils.CreateFakeCluster(t, "platform", sourcePullSecret, sourceCaSecret)
+	fakeCluster := testutils.CreateFakeCluster(t, "platform", sourceSecret)
 
 	tests := []struct {
-		name              string
-		targetCluster     ManagedCluster
-		imagePullSecrets  []corev1.LocalObjectReference
-		caSecrets         []corev1.LocalObjectReference
-		configPullSecrets SecretCopyConfig
-		configCaSecrets   SecretCopyConfig
+		name             string
+		targetCluster    ManagedCluster
+		imagePullSecrets []corev1.LocalObjectReference
+		config           SecretCopyConfig
 	}{
 		{
 			name:          "syncs secret with correct type",
@@ -71,20 +59,10 @@ func TestManageSecrets(t *testing.T) {
 			imagePullSecrets: []corev1.LocalObjectReference{
 				{Name: "test-pull-secret"},
 			},
-			caSecrets: []corev1.LocalObjectReference{
-				{Name: "test-ca-secret"},
-			},
-			configPullSecrets: SecretCopyConfig{
+			config: SecretCopyConfig{
 				SourceClient:    fakeCluster.Client(),
 				SourceNamespace: "source-ns",
 				TargetNamespace: "target-ns",
-				TargetType:      corev1.SecretTypeDockerConfigJson,
-			},
-			configCaSecrets: SecretCopyConfig{
-				SourceClient:    fakeCluster.Client(),
-				SourceNamespace: "source-ns",
-				TargetNamespace: "target-ns",
-				TargetType:      corev1.SecretTypeOpaque,
 			},
 		},
 		{
@@ -93,30 +71,18 @@ func TestManageSecrets(t *testing.T) {
 			imagePullSecrets: []corev1.LocalObjectReference{
 				{Name: "test-pull-secret"},
 			},
-			caSecrets: []corev1.LocalObjectReference{
-				{Name: "test-ca-secret"},
-			},
-			configPullSecrets: SecretCopyConfig{
+			config: SecretCopyConfig{
 				SourceClient:    fakeCluster.Client(),
 				SourceNamespace: "source-ns",
 				TargetNamespace: "target-ns",
 				TargetName:      fmt.Sprintf("%s%s", secretNamePrefix, "test-pull-secret"),
-				TargetType:      corev1.SecretTypeDockerConfigJson,
-			},
-			configCaSecrets: SecretCopyConfig{
-				SourceClient:    fakeCluster.Client(),
-				SourceNamespace: "source-ns",
-				TargetNamespace: "target-ns",
-				TargetName:      fmt.Sprintf("%s%s", secretNamePrefix, "test-ca-secret"),
-				TargetType:      corev1.SecretTypeOpaque,
 			},
 		},
 	}
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			ManageSecrets(tt.targetCluster, tt.imagePullSecrets, tt.configPullSecrets)
-			ManageSecrets(tt.targetCluster, tt.caSecrets, tt.configCaSecrets)
+			ManagePullSecrets(tt.targetCluster, tt.imagePullSecrets, tt.config)
 
 			// Apply managed objects
 			mgr := NewManager()
@@ -131,34 +97,17 @@ func TestManageSecrets(t *testing.T) {
 			for _, pullSecret := range tt.imagePullSecrets {
 				targetSecret := &corev1.Secret{}
 				targetSecretName := pullSecret.Name
-				if tt.configPullSecrets.TargetName != "" {
-					targetSecretName = tt.configPullSecrets.TargetName
+				if tt.config.TargetName != "" {
+					targetSecretName = tt.config.TargetName
 				}
 				err := fakeCluster.Client().Get(context.Background(), client.ObjectKey{
 					Name:      targetSecretName,
-					Namespace: tt.configPullSecrets.TargetNamespace,
+					Namespace: tt.config.TargetNamespace,
 				}, targetSecret)
 				require.NoError(t, err)
 
-				assert.Equal(t, sourcePullSecret.Data, targetSecret.Data)
+				assert.Equal(t, sourceSecret.Data, targetSecret.Data)
 				assert.Equal(t, corev1.SecretTypeDockerConfigJson, targetSecret.Type, "target secret should have the correct type")
-			}
-
-			// Verify secret was synced with correct type
-			for _, caSecret := range tt.caSecrets {
-				targetSecret := &corev1.Secret{}
-				targetSecretName := caSecret.Name
-				if tt.configCaSecrets.TargetName != "" {
-					targetSecretName = tt.configCaSecrets.TargetName
-				}
-				err := fakeCluster.Client().Get(context.Background(), client.ObjectKey{
-					Name:      targetSecretName,
-					Namespace: tt.configCaSecrets.TargetNamespace,
-				}, targetSecret)
-				require.NoError(t, err)
-
-				assert.Equal(t, sourceCaSecret.Data, targetSecret.Data)
-				assert.Equal(t, corev1.SecretTypeOpaque, targetSecret.Type, "target secret should have the correct type")
 			}
 		})
 	}

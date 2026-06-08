@@ -45,14 +45,12 @@ type SecretCopyConfig struct {
 	// TargetName is an optional value to adjust the name of the target secret
 	// instead of using the source secret name.
 	TargetName string
-	// TargetType is the type of the target secret.
-	TargetType corev1.SecretType
 }
 
-// ManageSecrets syncs every secret to the target cluster.
-func ManageSecrets(targetCluster ManagedCluster, secrets []corev1.LocalObjectReference, config SecretCopyConfig) {
-	for _, secret := range secrets {
-		secretName := secret.Name
+// ManagePullSecrets syncs every image pull secret to the target cluster.
+func ManagePullSecrets(targetCluster ManagedCluster, imagePullSecrets []corev1.LocalObjectReference, config SecretCopyConfig) {
+	for _, pullSecret := range imagePullSecrets {
+		secretName := pullSecret.Name
 		if config.TargetName != "" {
 			secretName = config.TargetName
 		}
@@ -69,7 +67,7 @@ func ManageSecrets(targetCluster ManagedCluster, secrets []corev1.LocalObjectRef
 				}
 				sourceSecret := &corev1.Secret{
 					ObjectMeta: metav1.ObjectMeta{
-						Name:      secret.Name,
+						Name:      pullSecret.Name,
 						Namespace: config.SourceNamespace,
 					},
 				}
@@ -77,7 +75,7 @@ func ManageSecrets(targetCluster ManagedCluster, secrets []corev1.LocalObjectRef
 				if err := config.SourceClient.Get(ctx, client.ObjectKeyFromObject(sourceSecret), sourceSecret); err != nil {
 					return err
 				}
-				mutator := openmcpresources.NewSecretMutator(secretName, config.TargetNamespace, sourceSecret.Data, config.TargetType)
+				mutator := openmcpresources.NewSecretMutator(secretName, config.TargetNamespace, sourceSecret.Data, corev1.SecretTypeDockerConfigJson)
 				return mutator.Mutate(oSecret)
 			},
 			StatusFunc: SimpleStatus,
@@ -125,7 +123,7 @@ type secretCleaner struct {
 	secretsToKeep []corev1.LocalObjectReference
 }
 
-// NewSecretCleaner removes redundant secrets in the given target namespace
+// NewSecretCleaner removes redundant pull secrets in the given target namespace
 // by removing any secret labeled as managed by sp-flux that is not in secretsToKeep.
 func NewSecretCleaner(cluster ManagedCluster, namespace string, secretsToKeep []corev1.LocalObjectReference) OrphanCleaner {
 	return &secretCleaner{
