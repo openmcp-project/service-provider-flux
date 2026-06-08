@@ -9,6 +9,7 @@ In air-gapped environments, you typically need to:
 1. **Mirror the Flux Helm chart** to your internal OCI registry
 2. **Mirror Flux controller images** to your internal container registry
 3. **Configure authentication** for both chart and image pulls
+4. **Add custom CA certificates** if you use private PKI with self-signed certificates
 
 The Flux service provider handles this through:
 
