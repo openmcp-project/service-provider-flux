@@ -5,6 +5,7 @@
 package v1alpha1
 
 import (
+	corev1 "k8s.io/api/core/v1"
 	apiextensionsv1 "k8s.io/apiextensions-apiserver/pkg/apis/apiextensions/v1"
 	v1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/runtime"
@@ -227,6 +228,11 @@ func (in *ProviderConfigSpec) DeepCopyInto(out *ProviderConfigSpec) {
 		in, out := &in.PollInterval, &out.PollInterval
 		*out = new(v1.Duration)
 		**out = **in
+	}
+	if in.CaBundleRef != nil {
+		in, out := &in.CaBundleRef, &out.CaBundleRef
+		*out = new(corev1.ConfigMapKeySelector)
+		(*in).DeepCopyInto(*out)
 	}
 }
 

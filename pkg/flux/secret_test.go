@@ -25,11 +25,8 @@ import (
 	"github.com/stretchr/testify/require"
 	corev1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
-	"k8s.io/apimachinery/pkg/runtime"
-	clientgoscheme "k8s.io/client-go/kubernetes/scheme"
 	"k8s.io/client-go/rest"
 	"sigs.k8s.io/controller-runtime/pkg/client"
-	"sigs.k8s.io/controller-runtime/pkg/client/fake"
 
 	"github.com/openmcp-project/service-provider-flux/pkg/testutils"
 )
@@ -233,24 +230,6 @@ func Test_secretCleaner_Cleanup(t *testing.T) {
 	}
 }
 
-var _ ManagedCluster = &fakeCluster{}
-
-type fakeCluster struct {
-	managedCluster
-	fakeClient client.Client
-}
-
-// GetClient implements [ManagedCluster].
-func (f *fakeCluster) GetClient() client.Client {
-	return f.fakeClient
-}
-
-func createFakeCluster(client client.Client) ManagedCluster {
-	return &fakeCluster{
-		fakeClient: client,
-	}
-}
-
 func testSecret(name, namespace string, managedByFlux bool) *corev1.Secret {
 	labels := map[string]string{}
 	if managedByFlux {
@@ -263,20 +242,6 @@ func testSecret(name, namespace string, managedByFlux bool) *corev1.Secret {
 			Labels:    labels,
 		},
 	}
-}
-
-func createFakeClient(clusterObjects []client.Object) client.Client {
-	scheme := runtime.NewScheme()
-	_ = clientgoscheme.AddToScheme(scheme)
-	return fake.NewClientBuilder().WithObjects(clusterObjects...).WithScheme(scheme).Build()
-}
-
-type listErrorClient struct {
-	client.Client
-}
-
-func (l listErrorClient) List(ctx context.Context, list client.ObjectList, opts ...client.ListOption) error {
-	return errors.New("list failed")
 }
 
 type deleteErrorClient struct {

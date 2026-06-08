@@ -15,6 +15,7 @@ The Flux service provider handles this through:
 - **`chartPullSecret`**: Credentials for pulling the Helm chart from a private OCI registry
 - **`values.imagePullSecrets`**: Credentials for pulling Flux controller images (specified in Helm values)
 - **`values`**: Custom Helm values for image location overrides
+- **`caBundleRef`**: PEM-encoded custom ca bundle if your private OCI registry uses self-signed certificates
 
 ## Secret Flow
 
@@ -24,6 +25,7 @@ flowchart TB
   subgraph PC[Platform Cluster]
     subgraph SPN[Service Provider Namespace]
       chartsecret([chart-pull-secret])
+      caconfigmap([custom-ca-configmap])
       imgsecret1([image-pull-secret-1])
       imgsecret2([image-pull-secret-2])
     end
@@ -40,15 +42,18 @@ flowchart TB
     subgraph FS[flux-system namespace]
       imgcopy1([image-pull-secret-1])
       imgcopy2([image-pull-secret-2])
+      caconfigmapcopy([custom-ca-configmap copy])
       fluxctrl[Flux Controllers]
       fluxctrl -. uses .-> imgcopy1
       fluxctrl -. uses .-> imgcopy2
+      fluxctrl -. uses .-> caconfigmapcopy
     end
   end
 
   chartsecret -- copied to --> chartsecretcopy
   imgsecret1 -- copied to --> imgcopy1
   imgsecret2 -- copied to --> imgcopy2
+  caconfigmap -- copied to --> caconfigmapcopy
   helmrel -- installs --> fluxctrl
 ```
 
@@ -62,6 +67,14 @@ kind: ProviderConfig
 metadata:
   name: flux-provider-config
 spec:
+  # ConfigMapKeySelector pointing to a configmap which holds a PEM-encoded custom CA bundle.
+  # Must exist in the service provider's namespace on the platform cluster
+  # The configmap will be automatically copied from the service provider's namespace
+  # to the flux-system namespace on the ManagedControlPlane and configured 
+  # for the flux-controllers
+  caBundleRef:
+    name: "custom-ca-bundle"
+    key: "ca-bundle.crt"
   versions:
     - version: "2.8.3"
       chartVersion: "2.18.2"
@@ -112,6 +125,33 @@ kubectl create secret docker-registry image-registry-credentials \
   --docker-password=<password>
 ```
 
+### Creating Custom CA ConfigMap
+
+Concatenate all your custom CA certificates into a single PEM file. Each certificate must use the standard PEM format.
+
+```shell
+cat /path/to/ca1.crt /path/to/ca2.crt > ca-bundle.crt
+```
+
+The resulting file should look like this:
+
+```text title="ca-bundle.crt"
+-----BEGIN CERTIFICATE-----
+MIIDXTCCAkWgAwIBAgIJAMSO...
+-----END CERTIFICATE-----
+-----BEGIN CERTIFICATE-----
+MIIDXTCCAkWgAwIBAgIJANPQ...
+-----END CERTIFICATE-----
+```
+
+Create the configmap
+
+```shell
+kubectl create configmap custom-ca-bundle \
+  --from-file=ca-bundle.crt=ca-bundle.crt \
+  --namespace=openmcp-system
+```
+
 ## How It Works
 
 ### Chart Pull Secret
@@ -126,6 +166,13 @@ kubectl create secret docker-registry image-registry-credentials \
 2. These secrets are copied from the service provider's namespace on the platform cluster to `flux-system` on the ManagedControlPlane
 3. The Helm values are passed through to Flux, which configures the controller pods with these secrets
 
+### Custom CA Bundle
+1. The configmap specified in `caBundleRef` is copied from the service provider's namespace on the platform cluster to `flux-system` on the ManagedControlPlane
+2. For each Flux controller, the Helm values are adjusted so that it mounts the provided `caBundleRef.key` and sets the `SSL_CERT_DIR` environment variable to add the bundle to the pool of known certificates
+3. The Helm values are passed through to Flux, and each Flux controller is able to verify certificates signed by the provided custom CA
+
+[!CAUTION] The custom CA certificate is not propagated to the OpenControlPlane cluster nodes. If you want to pull images from the same OCI registry you must add the custom CA certificate to the cluster nodes yourself.
+
 ## Complete Example
 
 ### Air-Gapped Setup
@@ -138,6 +185,9 @@ metadata:
 spec:
   chartUrl: "oci://harbor.corp.internal/charts/flux2"
   chartPullSecret: "harbor-credentials"
+  caBundleRef:
+    name: "harbor-ca-bundle"
+    key: "harbor-ca-bundle.crt"
   values:
     # Image pull secrets - will be copied to ManagedControlPlane
     imagePullSecrets:
@@ -190,6 +240,14 @@ kubectl get secrets -n mcp--<tenant-id> | grep -E "chart|image"
 
 # ManagedControlPlane - flux-system namespace
 kubectl get secrets -n flux-system | grep -E "image"
+```
+
+### Check ConfigMap Copying
+Verify configmaps are copied to the correct namespaces:
+
+```bash
+# ManagedControlPlane - flux-system namespace
+kubectl get cm -n flux-system | grep -E "<configmap-name>"
 ```
 
 ### Check OCIRepository Secret Reference

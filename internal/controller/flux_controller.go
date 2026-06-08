@@ -42,7 +42,7 @@ import (
 const conditionReasonError = "ReconcileError"
 
 // ErrManagedResources is an end-user facing error if errors are present inside Flux.Status.ManagedResources
-var ErrManagedResources error = errors.New("resources contain reconcile errors")
+var ErrManagedResources = errors.New("resources contain reconcile errors")
 
 // FluxReconciler reconciles a Flux object
 type FluxReconciler struct {
@@ -117,6 +117,9 @@ func userErrorMessage(err error) string {
 	if errors.Is(err, flux.ErrSecretCleanup) {
 		errorMessages = append(errorMessages, flux.ErrSecretCleanup.Error())
 	}
+	if errors.Is(err, flux.ErrConfigMapCleanup) {
+		errorMessages = append(errorMessages, flux.ErrConfigMapCleanup.Error())
+	}
 	return strings.Join(errorMessages, "; ")
 }
 
@@ -172,6 +175,22 @@ func (r *FluxReconciler) createObjectManager(obj *apiv1alpha1.Flux, pc *apiv1alp
 		})
 	}
 
+	if pc.Spec.CaBundleRef != nil {
+		// add custom ca volume and volumeMount to helm values
+		fluxVersion.Values, err = flux.AddCaToHelmValues(fluxVersion.Values, pc.Spec.CaBundleRef)
+		if err != nil {
+			return nil, fmt.Errorf("failed to add ca volume to helm values: %w", err)
+		}
+
+		// Sync ca configmap from platform cluster to MCP
+		flux.ManageCaConfigMap(mcpCluster, pc.Spec.CaBundleRef.LocalObjectReference, flux.ConfigMapCopyConfig{
+			SourceClient:    r.PlatformCluster.Client(),
+			SourceNamespace: r.PodNamespace,
+			TargetNamespace: fluxNamespace,
+		})
+
+	}
+
 	// Configure Flux resources (OCIRepository and HelmRelease)
 	flux.ManageFluxResources(flux.ManageFluxResourcesParams{
 		Cluster:             platformCluster,
@@ -194,10 +213,18 @@ func (r *FluxReconciler) createObjectManager(obj *apiv1alpha1.Flux, pc *apiv1alp
 			Name: prefixedChartPullSecret,
 		},
 	})
-	controlPlaneCleaner := flux.NewSecretCleaner(mcpCluster, fluxNamespace, helmValues.ImagePullSecrets)
+	controlPlaneSecretCleaner := flux.NewSecretCleaner(mcpCluster, fluxNamespace, helmValues.ImagePullSecrets)
+
+	configMapsToKeep := []corev1.LocalObjectReference{}
+	if pc.Spec.CaBundleRef != nil {
+		configMapsToKeep = append(configMapsToKeep, pc.Spec.CaBundleRef.LocalObjectReference)
+	}
+
+	controlPlaneConfigMapCleaner := flux.NewConfigMapCleaner(mcpCluster, fluxNamespace, configMapsToKeep)
 
 	mgr.AddCleaner(platformCleaner)
-	mgr.AddCleaner(controlPlaneCleaner)
+	mgr.AddCleaner(controlPlaneSecretCleaner)
+	mgr.AddCleaner(controlPlaneConfigMapCleaner)
 
 	return mgr, nil
 }

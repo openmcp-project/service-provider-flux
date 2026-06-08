@@ -37,6 +37,7 @@ flowchart LR
     subgraph FS[flux-system namespace]
       fluxctrl[Flux Controllers]
       pullsecret([image-pull-secret])
+      caconfigmap([custom-ca-configmap])
     end
   end
 
@@ -45,6 +46,7 @@ flowchart LR
   spflux -- creates --> helmrel
   helmrel -- installs --> fluxctrl
   spflux -- copies secrets --> pullsecret
+  spflux -- copies configmap --> caconfigmap
   mcpapi -- represents --> mcp
 ```
 
@@ -146,6 +148,10 @@ metadata:
 spec:
   # Optional: Reconciliation interval
   pollInterval: "5m"
+  # Optional: ConfigMapKeySelector for a custom ca bundle (configmap will be copied to ManagedControlPlane)
+  caBundleRef:
+    name: "custom-ca-bundle"
+    key: "ca-bundle.crt"
   # The Flux versions that can be installed
   versions:
     - version: "2.8.3"
@@ -170,13 +176,21 @@ spec:
           tag: v1.8.1
 ```
 
-| Field               | Type     | Description                                      |
-| ------------------- | -------- | ------------------------------------------------ |
-| `spec.pollInterval` | duration | How often to reconcile resources (default: 1m)   |
-| `certSecretRef`     | object   | SecretRef for chart registry trust establishment |
-| `spec.versions`     | array    | The versions of Flux that can be installed       |
+| Field               | Type                 | Description                                                        |
+| ------------------- | -------------------- | ------------------------------------------------------------------ |
+| `spec.pollInterval` | duration             | How often to reconcile resources (default: 1m)                     |
+| `spec.certSecretRef`| object               | SecretRef for chart registry trust establishment                   |
+| `spec.caBundleRef`  | ConfigMapKeySelector | A configmap with a ca bundle used by Flux to verify certificates   |
+| `spec.versions`     | array                | The versions of Flux that can be installed                         |
 
-A version item is defined as follows:
+A **caBundleref** is defined as follows:
+
+| Field | Type | Description |
+|-------|------|-------------|
+| `name` | string | The name of the configmap which holds the ca bundle |
+| `key` | string | The key in the configmap under which the ca bundle is stored |
+
+A **version** item is defined as follows:
 
 | Field             | Type   | Description                                   |
 | ----------------- | ------ | --------------------------------------------- |
