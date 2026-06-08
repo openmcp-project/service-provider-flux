@@ -119,7 +119,7 @@ spec:
 The `Flux` resource represents a Flux installation on a ManagedControlPlane.
 
 ```yaml
-apiVersion: flux.services.openmcp.cloud/v1alpha1
+apiVersion: flux.services.open-control-plane.io/v1alpha1
 kind: Flux
 metadata:
   name: my-flux
@@ -139,7 +139,7 @@ Note that any version that should be available to users have to be defined in th
 The `ProviderConfig` resource configures deployment settings for each version of Flux that the service provider supports.
 
 ```yaml
-apiVersion: flux.services.openmcp.cloud/v1alpha1
+apiVersion: flux.services.open-control-plane.io/v1alpha1
 kind: ProviderConfig
 metadata:
   name: flux
