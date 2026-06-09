@@ -4,23 +4,6 @@
 
 A service provider for managing [FluxCD](https://fluxcd.io/) deployments within a ManagedControlPlane environment. This provider enables GitOps capabilities by automatically installing and configuring Flux on managed control planes.
 
-## Quality Criteria
-
-[![Quality: Incubating](https://img.shields.io/badge/Quality-Incubating-3d9970?style=flat-square&labelColor=555)](https://open-control-plane.io/developers/serviceprovider/quality-criteria)
-
-| Criterion                         | Status | Notes                                                                                                                                                                                                                                                                        |
-| --------------------------------- | :----: | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| Deletion behaviour                |   ⚠️    | A finalizer ensures the Service Provider managed resources like Flux' `OCIRepository` and `HelmRelease` are cleaned-up. But there is no behaviour that ensures deletion is blocked if custom resources (e.g. Flux' `GitRepository` objects) in a `ControlPlane` still exist. |
-| Status reporting & error messages |   ✅    |                                                                                                                                                                                                                                                                              |
-| Operation annotations             |   ⚠️    | `openmcp.cloud/operation: ignore` is processed by [opencontrolplane-runtime](https://github.com/openmcp-project/opencontrolplane-runtime). `openmcp.cloud/operation: reconcile` is not processed.                                                                            |
-| API stability policy              |   ✅    |                                                                                                                                                                                                                                                                              |
-| Custom CA support                 |   ⚠️    | Private-registry pull secrets supported; custom CA bundle propagation to Flux components is not implemented.                                                                                                                                                                 |
-| Release artifacts (image + OCM)   |   ✅    |                                                                                                                                                                                                                                                                              |
-| Testing                           |   ✅    |                                                                                                                                                                                                                                                                              |
-| Ownership and maintenance docs    |   ✅    |                                                                                                                                                                                                                                                                              |
-
-See the [OpenControlPlane Quality Criteria](https://open-control-plane.io/developers/serviceprovider/quality-criteria) for definitions.
-
 ## 📖 Overview
 
 The Flux service provider automates the lifecycle management of Flux installations, including:
@@ -216,6 +199,23 @@ For air-gapped or enterprise environments, see the [Image Localization Guide](do
 | `task test-e2e`        | Run end-to-end tests       |
 | `task generate`        | Generate CRDs and code     |
 | `task validate`        | Run linters and formatters |
+
+## Quality Criteria
+
+[![Quality: Incubating](https://img.shields.io/badge/Quality-Incubating-3d9970?style=flat-square&labelColor=555)](https://open-control-plane.io/developers/serviceprovider/quality-criteria)
+
+| Criterion                         | Status | Notes                                                                                                                                                                                                                                                                        |
+| --------------------------------- | :----: | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Deletion behaviour                |   ⚠️    | A finalizer ensures the Service Provider managed resources like Flux' `OCIRepository` and `HelmRelease` are cleaned-up. But there is no behaviour that ensures deletion is blocked if custom resources (e.g. Flux' `GitRepository` objects) in a `ControlPlane` still exist. |
+| Status reporting & error messages |   ✅    |                                                                                                                                                                                                                                                                              |
+| Operation annotations             |   ⚠️    | `openmcp.cloud/operation: ignore` is processed by [opencontrolplane-runtime](https://github.com/openmcp-project/opencontrolplane-runtime). `openmcp.cloud/operation: reconcile` is not processed.                                                                            |
+| API stability policy              |   ✅    |                                                                                                                                                                                                                                                                              |
+| Custom CA support                 |   ⚠️    | Private-registry pull secrets supported; custom CA bundle propagation to Flux components is not implemented.                                                                                                                                                                 |
+| Release artifacts (image + OCM)   |   ✅    |                                                                                                                                                                                                                                                                              |
+| Testing                           |   ✅    |                                                                                                                                                                                                                                                                              |
+| Ownership and maintenance docs    |   ✅    |                                                                                                                                                                                                                                                                              |
+
+See the [OpenControlPlane Quality Criteria](https://open-control-plane.io/developers/serviceprovider/quality-criteria) for definitions.
 
 ## 🤝 Support, Feedback, Contributing
 
