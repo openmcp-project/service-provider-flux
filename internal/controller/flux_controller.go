@@ -176,7 +176,7 @@ func (r *FluxReconciler) createObjectManager(obj *apiv1alpha1.Flux, pc *apiv1alp
 	}
 
 	if pc.Spec.CaBundleRef != nil {
-		// add custom ca volume and volumeMount to helm values
+		// add custom ca volume, volumeMount and envVar to helm values
 		fluxVersion.Values, err = flux.AddCaToHelmValues(fluxVersion.Values, pc.Spec.CaBundleRef)
 		if err != nil {
 			return nil, fmt.Errorf("failed to add ca volume to helm values: %w", err)

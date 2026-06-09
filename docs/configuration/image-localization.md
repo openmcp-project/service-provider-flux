@@ -43,7 +43,7 @@ flowchart TB
     subgraph FS[flux-system namespace]
       imgcopy1([image-pull-secret-1])
       imgcopy2([image-pull-secret-2])
-      caconfigmapcopy([custom-ca-configmap copy])
+      caconfigmapcopy([custom-ca-configmap])
       fluxctrl[Flux Controllers]
       fluxctrl -. uses .-> imgcopy1
       fluxctrl -. uses .-> imgcopy2
@@ -71,8 +71,7 @@ spec:
   # ConfigMapKeySelector pointing to a configmap which holds a PEM-encoded custom CA bundle.
   # Must exist in the service provider's namespace on the platform cluster
   # The configmap will be automatically copied from the service provider's namespace
-  # to the flux-system namespace on the ManagedControlPlane and configured 
-  # for the flux-controllers
+  # and configured for the Flux controlers.
   caBundleRef:
     name: "custom-ca-bundle"
     key: "ca-bundle.crt"
