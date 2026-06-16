@@ -24,7 +24,7 @@ data:
   # dummy value for testing
   ca.crt: |
     -----BEGIN CERTIFICATE-----
-    MIIBsjCCAVigAwIBAgIUDummyCertificateForE2ETestsOnlywCgYIKoZIzj0EAwIw
+    MIIBsjCCAVigAwIBAgIUUpdatedDummyCertificateForE2ETestsOnlywCgYIKoZIzj0EAwIw
     EzERMA8GA1UEAwwIdGVzdC1jYTAeFw0yNjAxMDEwMDAwMDBaFw0zNjAxMDEwMDAw
     MDBaMBMxETAPBgNVBAMMCHRlc3QtY2EwWTATBgcqhkjOPQIBBggqhkjOPQMBBwNC
     AASxDummyCertDataOnlyForE2EFlowValidationDoNotUseInProd2Yxk7T7x7C1q5

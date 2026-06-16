@@ -3,6 +3,7 @@ package e2e
 import (
 	"context"
 	"encoding/json"
+	"strings"
 	"testing"
 	"time"
 
@@ -319,7 +320,7 @@ func TestServiceProvider(t *testing.T) {
 				t.Errorf("failed to get provider config: %v", err)
 				return ctx
 			}
-			providerConfig.Spec.CaBundleRef = &corev1.ConfigMapKeySelector{
+			providerConfig.Spec.CABundleRef = &corev1.ConfigMapKeySelector{
 				LocalObjectReference: corev1.LocalObjectReference{Name: caConfigMapNameUpdate},
 				Key:                  caConfigMapKey,
 			}
@@ -350,14 +351,32 @@ func TestServiceProvider(t *testing.T) {
 				return ctx
 			}
 
+			// Verify that updated configmap exists
 			mcpCaConfigMap := &corev1.ConfigMap{}
 			mcpCaConfigMap.SetName(mcpCAConfigMapName)
 			mcpCaConfigMap.SetNamespace("flux-system")
 			list := &corev1.ConfigMapList{
 				Items: []corev1.ConfigMap{*mcpCaConfigMap},
 			}
+
 			if err := wait.For(conditions.New(mcp.Client().Resources()).ResourcesFound(list), wait.WithTimeout(2*time.Minute)); err != nil {
 				t.Errorf("ca configmap not found on control plane: %v", err)
+				return ctx
+			}
+
+			// Verify the configmap contains updated certificate data
+			if err := mcp.Client().Resources().Get(ctx, mcpCAConfigMapName, "flux-system", mcpCaConfigMap); err != nil {
+				t.Errorf("failed to get ca configmap data: %v", err)
+				return ctx
+			}
+			caData, ok := mcpCaConfigMap.Data[caConfigMapKey]
+			if !ok {
+				t.Errorf("ca configmap missing key %s", caConfigMapKey)
+				return ctx
+			}
+			// Verify the data contains the expected updated certificate marker
+			if !strings.Contains(caData, "UpdatedDummyCertificate") {
+				t.Errorf("ca configmap does not contain expected updated certificate data. Got: %s", caData)
 			}
 			return ctx
 		}).
@@ -374,7 +393,7 @@ func TestServiceProvider(t *testing.T) {
 			}
 			providerConfig.Spec.Versions[0].ChartPullSecret = ""
 			providerConfig.Spec.Versions[0].Values = nil
-			providerConfig.Spec.CaBundleRef = nil
+			providerConfig.Spec.CABundleRef = nil
 			if err := c.Client().Resources().Update(ctx, providerConfig); err != nil {
 				t.Errorf("failed to update provider config: %v", err)
 			}

@@ -76,9 +76,9 @@ func ExtractHelmValues(values *apiextensionsv1.JSON) (*HelmValues, error) {
 	return vals, nil
 }
 
-// AddCaToHelmValues removes conflicting volumes, volumeMounts and envVars (matching by name and/or mountPath) and
+// AddCAToHelmValues removes conflicting volumes, volumeMounts and envVars (matching by name and/or mountPath) and
 // adds a volume, volumeMount and envVar on all Flux controller helm values sections to import the custom CA certificate.
-func AddCaToHelmValues(values *apiextensionsv1.JSON, configMap *corev1.ConfigMapKeySelector) (*apiextensionsv1.JSON, error) {
+func AddCAToHelmValues(values *apiextensionsv1.JSON, configMap *corev1.ConfigMapKeySelector) (*apiextensionsv1.JSON, error) {
 	if configMap == nil {
 		return nil, errors.New("cannot add custom CA to Helm values: ConfigMapKeySelector is nil")
 	}
@@ -120,7 +120,7 @@ func AddCaToHelmValues(values *apiextensionsv1.JSON, configMap *corev1.ConfigMap
 	}
 
 	for _, controller := range fluxControllers {
-		if err := addCaToController(root, controller, caVolume, caVolumeMount, caEnvVar); err != nil {
+		if err := addCAToController(root, controller, caVolume, caVolumeMount, caEnvVar); err != nil {
 			return nil, err
 		}
 	}
@@ -133,7 +133,7 @@ func AddCaToHelmValues(values *apiextensionsv1.JSON, configMap *corev1.ConfigMap
 	return &apiextensionsv1.JSON{Raw: out}, nil
 }
 
-func addCaToController(
+func addCAToController(
 	root map[string]json.RawMessage,
 	controller string,
 	caVolume corev1.Volume,
@@ -148,6 +148,7 @@ func addCaToController(
 	if err := unmarshalIfPresent(root, controller, &controllerValues); err != nil {
 		return fmt.Errorf("failed to unmarshal %s: %w", controller, err)
 	}
+
 	if controllerValues == nil {
 		controllerValues = map[string]json.RawMessage{}
 	}

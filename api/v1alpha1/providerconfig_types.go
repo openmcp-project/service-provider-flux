@@ -40,7 +40,7 @@ type ProviderConfigSpec struct {
 	// CABundleRef is a reference to a config map containing a certificate bundle.
 	// It will be installed on the ManagedControlPlane and configured for the Flux controllers.
 	// +kubebuilder:validation:Optional
-	CaBundleRef *corev1.ConfigMapKeySelector `json:"caBundleRef,omitempty"`
+	CABundleRef *corev1.ConfigMapKeySelector `json:"caBundleRef,omitempty"`
 }
 
 // FluxVersion defines a version of Flux that can be installed

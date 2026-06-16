@@ -229,8 +229,8 @@ func (in *ProviderConfigSpec) DeepCopyInto(out *ProviderConfigSpec) {
 		*out = new(v1.Duration)
 		**out = **in
 	}
-	if in.CaBundleRef != nil {
-		in, out := &in.CaBundleRef, &out.CaBundleRef
+	if in.CABundleRef != nil {
+		in, out := &in.CABundleRef, &out.CABundleRef
 		*out = new(corev1.ConfigMapKeySelector)
 		(*in).DeepCopyInto(*out)
 	}

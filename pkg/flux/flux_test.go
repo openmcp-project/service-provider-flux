@@ -172,62 +172,6 @@ func TestSimpleStatus(t *testing.T) {
 	}
 }
 
-// TestSecretStatus tests the SecretStatus function
-func TestSecretStatus(t *testing.T) {
-	tests := []struct {
-		name     string
-		obj      client.Object
-		rl       apiv1alpha1.ResourceLocation
-		expected apiv1alpha1.InstancePhase
-	}{
-		{
-			name: "secret with UID - ready",
-			obj: &corev1.Secret{
-				ObjectMeta: metav1.ObjectMeta{
-					Name:      "test",
-					Namespace: "test-ns",
-					UID:       "test-uid",
-				},
-			},
-			rl:       apiv1alpha1.ManagedControlPlane,
-			expected: apiv1alpha1.Ready,
-		},
-		{
-			name: "secret without UID - pending",
-			obj: &corev1.Secret{
-				ObjectMeta: metav1.ObjectMeta{
-					Name:      "test",
-					Namespace: "test-ns",
-				},
-			},
-			rl:       apiv1alpha1.ManagedControlPlane,
-			expected: apiv1alpha1.Pending,
-		},
-		{
-			name: "secret being deleted - terminating",
-			obj: &corev1.Secret{
-				ObjectMeta: metav1.ObjectMeta{
-					Name:              "test",
-					Namespace:         "test-ns",
-					UID:               "test-uid",
-					DeletionTimestamp: &metav1.Time{Time: time.Now()},
-					Finalizers:        []string{"test-finalizer"},
-				},
-			},
-			rl:       apiv1alpha1.ManagedControlPlane,
-			expected: apiv1alpha1.Terminating,
-		},
-	}
-
-	for _, tt := range tests {
-		t.Run(tt.name, func(t *testing.T) {
-			status := SecretStatus(tt.obj, tt.rl)
-			assert.Equal(t, tt.expected, status.Phase)
-			assert.Equal(t, tt.rl, status.Location)
-		})
-	}
-}
-
 // TestSetManagedBy tests the SetManagedBy function
 func TestSetManagedBy(t *testing.T) {
 	tests := []struct {

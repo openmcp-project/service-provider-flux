@@ -175,15 +175,15 @@ func (r *FluxReconciler) createObjectManager(obj *apiv1alpha1.Flux, pc *apiv1alp
 		})
 	}
 
-	if pc.Spec.CaBundleRef != nil {
+	if pc.Spec.CABundleRef != nil {
 		// add custom ca volume, volumeMount and envVar to helm values
-		fluxVersion.Values, err = flux.AddCaToHelmValues(fluxVersion.Values, pc.Spec.CaBundleRef)
+		fluxVersion.Values, err = flux.AddCAToHelmValues(fluxVersion.Values, pc.Spec.CABundleRef)
 		if err != nil {
 			return nil, fmt.Errorf("failed to add ca volume to helm values: %w", err)
 		}
 
 		// Sync ca configmap from platform cluster to MCP
-		flux.ManageCaConfigMap(mcpCluster, pc.Spec.CaBundleRef.LocalObjectReference, flux.ConfigMapCopyConfig{
+		flux.ManageCaConfigMap(mcpCluster, pc.Spec.CABundleRef.LocalObjectReference, flux.ConfigMapCopyConfig{
 			SourceClient:    r.PlatformCluster.Client(),
 			SourceNamespace: r.PodNamespace,
 			TargetNamespace: fluxNamespace,
@@ -217,7 +217,7 @@ func (r *FluxReconciler) createObjectManager(obj *apiv1alpha1.Flux, pc *apiv1alp
 	controlPlaneSecretCleaner := flux.NewSecretCleaner(mcpCluster, fluxNamespace, helmValues.ImagePullSecrets)
 
 	configMapsToKeep := []corev1.LocalObjectReference{}
-	if pc.Spec.CaBundleRef != nil {
+	if pc.Spec.CABundleRef != nil {
 		configMapsToKeep = append(configMapsToKeep, corev1.LocalObjectReference{Name: flux.CustomCABundleConfigMapName})
 	}
 

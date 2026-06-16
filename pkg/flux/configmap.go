@@ -74,7 +74,7 @@ func ManageCaConfigMap(targetCluster ManagedCluster, caConfigMap corev1.LocalObj
 			mutator := openmcpresources.NewConfigMapMutator(caConfigMapName, config.TargetNamespace, sourceConfigMap.Data)
 			return mutator.Mutate(oConfigMap)
 		},
-		StatusFunc: SimpleStatus,
+		StatusFunc: ConfigMapStatus,
 	})
 	targetCluster.AddObject(configMap)
 }

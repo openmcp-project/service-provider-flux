@@ -183,7 +183,7 @@ spec:
 | `spec.caBundleRef`  | ConfigMapKeySelector | A configmap with a ca bundle used by Flux to verify certificates   |
 | `spec.versions`     | array                | The versions of Flux that can be installed                         |
 
-A **caBundleref** is defined as follows:
+A **caBundleRef** is defined as follows:
 
 | Field | Type | Description |
 |-------|------|-------------|
