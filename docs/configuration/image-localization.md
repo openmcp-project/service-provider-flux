@@ -71,7 +71,7 @@ spec:
   # ConfigMapKeySelector pointing to a configmap which holds a PEM-encoded custom CA bundle.
   # Must exist in the service provider's namespace on the platform cluster
   # The configmap will be automatically copied from the service provider's namespace
-  # and configured for the Flux controlers.
+  # and configured for the Flux controllers.
   caBundleRef:
     name: "custom-ca-bundle"
     key: "ca-bundle.crt"
@@ -171,7 +171,8 @@ kubectl create configmap custom-ca-bundle \
 2. For each Flux controller, the Helm values are adjusted so that it mounts the provided `caBundleRef.key` and sets the `SSL_CERT_DIR` environment variable to add the bundle to the pool of known certificates
 3. The Helm values are passed through to Flux, and each Flux controller is able to verify certificates signed by the provided custom CA
 
-[!CAUTION] The custom CA certificate is not propagated to the OpenControlPlane cluster nodes. If you want to pull images from the same OCI registry you must add the custom CA certificate to the cluster nodes yourself.
+[!CAUTION]
+The custom CA certificate is not propagated to the OpenControlPlane cluster nodes. If you want to pull images from the same OCI registry you must add the custom CA certificate to the cluster nodes yourself.
 
 ## Complete Example
 
