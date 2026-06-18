@@ -78,7 +78,7 @@ func ManagePullSecrets(targetCluster ManagedCluster, imagePullSecrets []corev1.L
 				mutator := openmcpresources.NewSecretMutator(secretName, config.TargetNamespace, sourceSecret.Data, corev1.SecretTypeDockerConfigJson)
 				return mutator.Mutate(oSecret)
 			},
-			StatusFunc: SimpleStatus,
+			StatusFunc: SecretStatus,
 		})
 		targetCluster.AddObject(secret)
 	}

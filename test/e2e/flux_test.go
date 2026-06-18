@@ -3,9 +3,11 @@ package e2e
 import (
 	"context"
 	"encoding/json"
+	"strings"
 	"testing"
 	"time"
 
+	appsv1 "k8s.io/api/apps/v1"
 	corev1 "k8s.io/api/core/v1"
 	v1 "k8s.io/apiextensions-apiserver/pkg/apis/apiextensions/v1"
 	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
@@ -28,7 +30,16 @@ import (
 	"github.com/openmcp-project/openmcp-testing/pkg/resources"
 )
 
-const mcpName = "test-mcp"
+const (
+	mcpName               = "test-mcp"
+	mcpCAConfigMapName    = "custom-ca-bundle"
+	caConfigMapNameUpdate = "flux-ca-bundle-update"
+	caConfigMapKey        = "ca.crt"
+	caVolumeName          = "custom-ca-bundle"
+	caMountPath           = "/etc/open-control-plane/custom-ca"
+	sslCertDirEnvName     = "SSL_CERT_DIR"
+	sslCertDirEnvValue    = "/etc/ssl/certs:/etc/pki/tls/certs:/etc/open-control-plane/custom-ca"
+)
 
 func TestServiceProvider(t *testing.T) {
 	var onboardingList unstructured.UnstructuredList
@@ -106,6 +117,16 @@ func TestServiceProvider(t *testing.T) {
 			if err := wait.For(conditions.New(mcp.Client().Resources()).ResourcesFound(list), wait.WithTimeout(2*time.Minute)); err != nil {
 				t.Errorf("image pull secret not found on control plane: %v", err)
 			}
+
+			caBundleConfigMap := &corev1.ConfigMap{}
+			caBundleConfigMap.SetName(mcpCAConfigMapName)
+			caBundleConfigMap.SetNamespace("flux-system")
+			cmList := &corev1.ConfigMapList{
+				Items: []corev1.ConfigMap{*caBundleConfigMap},
+			}
+			if err := wait.For(conditions.New(mcp.Client().Resources()).ResourcesFound(cmList), wait.WithTimeout(2*time.Minute)); err != nil {
+				t.Errorf("ca configmap not found on control plane: %v", err)
+			}
 			return ctx
 		}).
 		Assess("domain objects can be created", func(ctx context.Context, t *testing.T, c *envconf.Config) context.Context {
@@ -139,6 +160,69 @@ func TestServiceProvider(t *testing.T) {
 					t.Error(err)
 				}
 			}
+			return ctx
+		}).
+		Assess("flux deployments mount custom ca and set SSL_CERT_DIR", func(ctx context.Context, t *testing.T, c *envconf.Config) context.Context {
+			mcp, err := clusterutils.MCPConfig(ctx, c, mcpName)
+			if err != nil {
+				t.Error(err)
+				return ctx
+			}
+
+			deploymentNames := []string{
+				"helm-controller",
+				"image-automation-controller",
+				"image-reflector-controller",
+				"kustomize-controller",
+				"notification-controller",
+				"source-controller",
+				"source-watcher",
+			}
+
+			for _, deploymentName := range deploymentNames {
+				deployment := &appsv1.Deployment{}
+				if err := mcp.Client().Resources().Get(ctx, deploymentName, "flux-system", deployment); err != nil {
+					t.Errorf("failed to get deployment %s: %v", deploymentName, err)
+					continue
+				}
+
+				hasCAVolume := false
+				for _, volume := range deployment.Spec.Template.Spec.Volumes {
+					if volume.Name == caVolumeName {
+						hasCAVolume = true
+						break
+					}
+				}
+				if !hasCAVolume {
+					t.Errorf("deployment %s does not have %s volume", deploymentName, caVolumeName)
+					continue
+				}
+
+				hasCAMount := false
+				hasSSLCertDirEnv := false
+				for _, container := range deployment.Spec.Template.Spec.Containers {
+					for _, volumeMount := range container.VolumeMounts {
+						if volumeMount.Name == caVolumeName && volumeMount.MountPath == caMountPath {
+							hasCAMount = true
+							break
+						}
+					}
+					for _, envVar := range container.Env {
+						if envVar.Name == sslCertDirEnvName && envVar.Value == sslCertDirEnvValue {
+							hasSSLCertDirEnv = true
+							break
+						}
+					}
+				}
+
+				if !hasCAMount {
+					t.Errorf("deployment %s does not mount %s at %s", deploymentName, caVolumeName, caMountPath)
+				}
+				if !hasSSLCertDirEnv {
+					t.Errorf("deployment %s does not set %s=%s", deploymentName, sslCertDirEnvName, sslCertDirEnvValue)
+				}
+			}
+
 			return ctx
 		}).
 		Assess("provider config update with new secret references", func(ctx context.Context, t *testing.T, c *envconf.Config) context.Context {
@@ -225,6 +309,77 @@ func TestServiceProvider(t *testing.T) {
 			}
 			return ctx
 		}).
+		Assess("provider config update with new ca bundle reference", func(ctx context.Context, t *testing.T, c *envconf.Config) context.Context {
+			if err := v1alpha1.AddToScheme(c.Client().Resources().GetScheme()); err != nil {
+				t.Errorf("failed to add api types to client scheme: %s", err)
+				return ctx
+			}
+			providerConfig := &v1alpha1.ProviderConfig{}
+			providerConfig.SetName("flux")
+			if err := c.Client().Resources().Get(ctx, "flux", "openmcp-system", providerConfig); err != nil {
+				t.Errorf("failed to get provider config: %v", err)
+				return ctx
+			}
+			providerConfig.Spec.CABundleRef = &corev1.ConfigMapKeySelector{
+				LocalObjectReference: corev1.LocalObjectReference{Name: caConfigMapNameUpdate},
+				Key:                  caConfigMapKey,
+			}
+			if err := c.Client().Resources().Update(ctx, providerConfig); err != nil {
+				t.Errorf("failed to update provider config: %v", err)
+				return ctx
+			}
+
+			onboardingConfig, err := clusterutils.OnboardingConfig()
+			v1alpha1.AddToScheme(onboardingConfig.GetClient().Resources().GetScheme())
+			if err != nil {
+				t.Error(err)
+				return ctx
+			}
+
+			fluxObj := &v1alpha1.Flux{}
+			fluxObj.SetName(mcpName)
+			fluxObj.SetNamespace(corev1.NamespaceDefault)
+			if err := wait.For(openmcpconditions.Match(fluxObj, onboardingConfig, "Ready", corev1.ConditionTrue), wait.WithTimeout(2*time.Minute)); err != nil {
+				t.Errorf("Flux not ready after provider config update: %v", err)
+			}
+			return ctx
+		}).
+		Assess("control plane ca configmap updated", func(ctx context.Context, t *testing.T, c *envconf.Config) context.Context {
+			mcp, err := clusterutils.MCPConfig(ctx, c, mcpName)
+			if err != nil {
+				t.Error(err)
+				return ctx
+			}
+
+			// Verify that updated configmap exists
+			mcpCaConfigMap := &corev1.ConfigMap{}
+			mcpCaConfigMap.SetName(mcpCAConfigMapName)
+			mcpCaConfigMap.SetNamespace("flux-system")
+			list := &corev1.ConfigMapList{
+				Items: []corev1.ConfigMap{*mcpCaConfigMap},
+			}
+
+			if err := wait.For(conditions.New(mcp.Client().Resources()).ResourcesFound(list), wait.WithTimeout(2*time.Minute)); err != nil {
+				t.Errorf("ca configmap not found on control plane: %v", err)
+				return ctx
+			}
+
+			// Verify the configmap contains updated certificate data
+			if err := mcp.Client().Resources().Get(ctx, mcpCAConfigMapName, "flux-system", mcpCaConfigMap); err != nil {
+				t.Errorf("failed to get ca configmap data: %v", err)
+				return ctx
+			}
+			caData, ok := mcpCaConfigMap.Data[caConfigMapKey]
+			if !ok {
+				t.Errorf("ca configmap missing key %s", caConfigMapKey)
+				return ctx
+			}
+			// Verify the data contains the expected updated certificate marker
+			if !strings.Contains(caData, "UpdatedDummyCertificate") {
+				t.Errorf("ca configmap does not contain expected updated certificate data. Got: %s", caData)
+			}
+			return ctx
+		}).
 		Assess("provider config update drops pull secrets", func(ctx context.Context, t *testing.T, c *envconf.Config) context.Context {
 			if err := v1alpha1.AddToScheme(c.Client().Resources().GetScheme()); err != nil {
 				t.Errorf("failed to add api types to client scheme: %s", err)
@@ -238,6 +393,7 @@ func TestServiceProvider(t *testing.T) {
 			}
 			providerConfig.Spec.Versions[0].ChartPullSecret = ""
 			providerConfig.Spec.Versions[0].Values = nil
+			providerConfig.Spec.CABundleRef = nil
 			if err := c.Client().Resources().Update(ctx, providerConfig); err != nil {
 				t.Errorf("failed to update provider config: %v", err)
 			}
@@ -284,6 +440,21 @@ func TestServiceProvider(t *testing.T) {
 					labels.FormatLabels(map[string]string{flux.LabelManagedBy: "service-provider-flux"}))),
 				wait.WithTimeout(2*time.Minute)); err != nil {
 				t.Errorf("orphaned image pull secret is not deleted: %v", err)
+			}
+			return ctx
+		}).
+		Assess("control plane ca configmap deleted", func(ctx context.Context, t *testing.T, c *envconf.Config) context.Context {
+			mcp, err := clusterutils.MCPConfig(ctx, c, mcpName)
+			if err != nil {
+				t.Error(err)
+				return ctx
+			}
+			caConfigMap := &corev1.ConfigMapList{}
+			if err := wait.For(conditions.New(mcp.Client().Resources().WithNamespace("flux-system")).
+				ResourceListN(caConfigMap, 0, klientresources.WithLabelSelector(
+					labels.FormatLabels(map[string]string{flux.LabelManagedBy: "service-provider-flux"}))),
+				wait.WithTimeout(2*time.Minute)); err != nil {
+				t.Errorf("orphaned ca configmap is not deleted: %v", err)
 			}
 			return ctx
 		}).

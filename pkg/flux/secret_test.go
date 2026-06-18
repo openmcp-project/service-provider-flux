@@ -20,16 +20,16 @@ import (
 	"slices"
 	"strings"
 	"testing"
+	"time"
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	corev1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
-	"k8s.io/apimachinery/pkg/runtime"
-	clientgoscheme "k8s.io/client-go/kubernetes/scheme"
 	"k8s.io/client-go/rest"
 	"sigs.k8s.io/controller-runtime/pkg/client"
-	"sigs.k8s.io/controller-runtime/pkg/client/fake"
+
+	apiv1alpha1 "github.com/openmcp-project/service-provider-flux/api/v1alpha1"
 
 	"github.com/openmcp-project/service-provider-flux/pkg/testutils"
 )
@@ -233,24 +233,6 @@ func Test_secretCleaner_Cleanup(t *testing.T) {
 	}
 }
 
-var _ ManagedCluster = &fakeCluster{}
-
-type fakeCluster struct {
-	managedCluster
-	fakeClient client.Client
-}
-
-// GetClient implements [ManagedCluster].
-func (f *fakeCluster) GetClient() client.Client {
-	return f.fakeClient
-}
-
-func createFakeCluster(client client.Client) ManagedCluster {
-	return &fakeCluster{
-		fakeClient: client,
-	}
-}
-
 func testSecret(name, namespace string, managedByFlux bool) *corev1.Secret {
 	labels := map[string]string{}
 	if managedByFlux {
@@ -265,18 +247,60 @@ func testSecret(name, namespace string, managedByFlux bool) *corev1.Secret {
 	}
 }
 
-func createFakeClient(clusterObjects []client.Object) client.Client {
-	scheme := runtime.NewScheme()
-	_ = clientgoscheme.AddToScheme(scheme)
-	return fake.NewClientBuilder().WithObjects(clusterObjects...).WithScheme(scheme).Build()
-}
+// TestSecretStatus tests the SecretStatus function
+func TestSecretStatus(t *testing.T) {
+	tests := []struct {
+		name     string
+		obj      client.Object
+		rl       apiv1alpha1.ResourceLocation
+		expected apiv1alpha1.InstancePhase
+	}{
+		{
+			name: "secret with UID - ready",
+			obj: &corev1.Secret{
+				ObjectMeta: metav1.ObjectMeta{
+					Name:      "test",
+					Namespace: "test-ns",
+					UID:       "test-uid",
+				},
+			},
+			rl:       apiv1alpha1.ManagedControlPlane,
+			expected: apiv1alpha1.Ready,
+		},
+		{
+			name: "secret without UID - pending",
+			obj: &corev1.Secret{
+				ObjectMeta: metav1.ObjectMeta{
+					Name:      "test",
+					Namespace: "test-ns",
+				},
+			},
+			rl:       apiv1alpha1.ManagedControlPlane,
+			expected: apiv1alpha1.Pending,
+		},
+		{
+			name: "secret being deleted - terminating",
+			obj: &corev1.Secret{
+				ObjectMeta: metav1.ObjectMeta{
+					Name:              "test",
+					Namespace:         "test-ns",
+					UID:               "test-uid",
+					DeletionTimestamp: &metav1.Time{Time: time.Now()},
+					Finalizers:        []string{"test-finalizer"},
+				},
+			},
+			rl:       apiv1alpha1.ManagedControlPlane,
+			expected: apiv1alpha1.Terminating,
+		},
+	}
 
-type listErrorClient struct {
-	client.Client
-}
-
-func (l listErrorClient) List(ctx context.Context, list client.ObjectList, opts ...client.ListOption) error {
-	return errors.New("list failed")
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			status := SecretStatus(tt.obj, tt.rl)
+			assert.Equal(t, tt.expected, status.Phase)
+			assert.Equal(t, tt.rl, status.Location)
+		})
+	}
 }
 
 type deleteErrorClient struct {
