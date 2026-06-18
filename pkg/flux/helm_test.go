@@ -161,10 +161,11 @@ func TestAddCaToHelmValues(t *testing.T) {
 	}
 
 	tests := []struct {
-		name       string
-		values     *apiextensionsv1.JSON
-		wantErr    string
-		checkValue func(t *testing.T, out *apiextensionsv1.JSON)
+		name        string
+		caBundleRef *corev1.ConfigMapKeySelector
+		values      *apiextensionsv1.JSON
+		wantErr     string
+		checkValue  func(t *testing.T, out *apiextensionsv1.JSON)
 	}{
 		{
 			name:   "Adds controller volumes, volumeMounts and extraEnv when no helm values are set",
@@ -341,11 +342,35 @@ func TestAddCaToHelmValues(t *testing.T) {
 			}),
 			wantErr: "failed to unmarshal helmController.extraEnv",
 		},
+		{
+			name:    "returns error if configMap name is unset",
+			wantErr: "caBundleRef.Name is unset",
+			caBundleRef: &corev1.ConfigMapKeySelector{
+				LocalObjectReference: corev1.LocalObjectReference{Name: ""},
+				Key:                  "ca.crt",
+			},
+		},
+		{
+			name:    "returns error if configMap key is unset",
+			wantErr: "caBundleRef.Key is unset",
+			caBundleRef: &corev1.ConfigMapKeySelector{
+				LocalObjectReference: corev1.LocalObjectReference{Name: "custom-ca-configmap"},
+				Key:                  "",
+			},
+		},
 	}
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			out, err := AddCAToHelmValues(tt.values, caBundleRef)
+			var out *apiextensionsv1.JSON
+			var err error
+
+			if tt.caBundleRef != nil {
+				out, err = AddCAToHelmValues(tt.values, tt.caBundleRef)
+			} else {
+				out, err = AddCAToHelmValues(tt.values, caBundleRef)
+			}
+
 			if tt.wantErr != "" {
 				require.Error(t, err)
 				assert.Contains(t, err.Error(), tt.wantErr)

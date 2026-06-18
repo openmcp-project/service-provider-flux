@@ -83,6 +83,14 @@ func AddCAToHelmValues(values *apiextensionsv1.JSON, configMap *corev1.ConfigMap
 		return nil, errors.New("cannot add custom CA to Helm values: ConfigMapKeySelector is nil")
 	}
 
+	if configMap.Name == "" {
+		return nil, errors.New("cannot add custom CA to Helm values: caBundleRef.Name is unset")
+	}
+
+	if configMap.Key == "" {
+		return nil, errors.New("cannot add custom CA to Helm values: caBundleRef.Key is unset")
+	}
+
 	var root = map[string]json.RawMessage{}
 
 	caVolume := corev1.Volume{
