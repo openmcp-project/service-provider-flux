@@ -117,6 +117,9 @@ func AddCAToHelmValues(values *apiextensionsv1.JSON, configMap *corev1.ConfigMap
 		if err := json.Unmarshal(values.Raw, &root); err != nil {
 			return nil, fmt.Errorf("failed to unmarshal helm values: %w", err)
 		}
+		if root == nil {
+			root = make(map[string]json.RawMessage)
+		}
 	}
 
 	for _, controller := range fluxControllers {

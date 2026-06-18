@@ -288,6 +288,21 @@ func TestAddCaToHelmValues(t *testing.T) {
 			},
 		},
 		{
+			name:   "null JSON value treated as empty",
+			values: &apiextensionsv1.JSON{Raw: []byte("null")},
+			checkValue: func(t *testing.T, out *apiextensionsv1.JSON) {
+				require.NotNil(t, out)
+
+				expected := buildHelmValues(t,
+					withAllControllerVolumes(expectedCaVolume),
+					withAllControllerVolumeMounts(expectedCaVolumeMount),
+					withAllControllerExtraEnv(expectedCaEnvVar),
+				)
+
+				assert.JSONEq(t, string(expected.Raw), string(out.Raw))
+			},
+		},
+		{
 			name:    "Returns error for invalid root json",
 			values:  &apiextensionsv1.JSON{Raw: []byte("not-json")},
 			wantErr: "failed to unmarshal helm values",
