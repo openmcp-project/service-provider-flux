@@ -78,17 +78,18 @@ func ExtractHelmValues(values *apiextensionsv1.JSON) (*HelmValues, error) {
 
 // AddCAToHelmValues removes conflicting volumes, volumeMounts and envVars (matching by name and/or mountPath) and
 // adds a volume, volumeMount and envVar on all Flux controller helm values sections to import the custom CA certificate.
+// nolint:gocyclo
 func AddCAToHelmValues(values *apiextensionsv1.JSON, configMap *corev1.ConfigMapKeySelector) (*apiextensionsv1.JSON, error) {
 	if configMap == nil {
 		return nil, errors.New("cannot add custom CA to Helm values: ConfigMapKeySelector is nil")
 	}
 
 	if configMap.Name == "" {
-		return nil, errors.New("cannot add custom CA to Helm values: caBundleRef.Name is unset")
+		return nil, errors.New("cannot add custom CA to Helm values: caBundleRef.Name must be set")
 	}
 
 	if configMap.Key == "" {
-		return nil, errors.New("cannot add custom CA to Helm values: caBundleRef.Key is unset")
+		return nil, errors.New("cannot add custom CA to Helm values: caBundleRef.Key must be set")
 	}
 
 	var root = map[string]json.RawMessage{}

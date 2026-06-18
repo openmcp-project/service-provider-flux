@@ -344,7 +344,7 @@ func TestAddCaToHelmValues(t *testing.T) {
 		},
 		{
 			name:    "returns error if configMap name is unset",
-			wantErr: "caBundleRef.Name is unset",
+			wantErr: "caBundleRef.Name must be set",
 			caBundleRef: &corev1.ConfigMapKeySelector{
 				LocalObjectReference: corev1.LocalObjectReference{Name: ""},
 				Key:                  "ca.crt",
@@ -352,7 +352,7 @@ func TestAddCaToHelmValues(t *testing.T) {
 		},
 		{
 			name:    "returns error if configMap key is unset",
-			wantErr: "caBundleRef.Key is unset",
+			wantErr: "caBundleRef.Key must be set",
 			caBundleRef: &corev1.ConfigMapKeySelector{
 				LocalObjectReference: corev1.LocalObjectReference{Name: "custom-ca-configmap"},
 				Key:                  "",
