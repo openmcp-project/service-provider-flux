@@ -1,6 +1,6 @@
 module github.com/openmcp-project/service-provider-flux
 
-go 1.26.2
+go 1.26.4
 
 require (
 	github.com/fluxcd/helm-controller/api v1.5.5
@@ -9,7 +9,7 @@ require (
 	github.com/fluxcd/source-controller/api v1.8.5
 	github.com/openmcp-project/controller-utils v0.29.0
 	github.com/openmcp-project/opencontrolplane-runtime v0.2.1
-	github.com/openmcp-project/openmcp-operator/api v0.20.0
+	github.com/openmcp-project/openmcp-operator/api v1.0.0
 	github.com/openmcp-project/openmcp-operator/lib v0.20.0
 	github.com/stretchr/testify v1.11.1
 	k8s.io/api v0.36.1
@@ -26,11 +26,11 @@ require (
 	github.com/cenkalti/backoff/v5 v5.0.3 // indirect
 	github.com/cyphar/filepath-securejoin v0.6.1 // indirect
 	github.com/felixge/httpsnoop v1.0.4 // indirect
-	github.com/fluxcd/flux2/v2 v2.8.3 // indirect
-	github.com/fluxcd/kustomize-controller/api v1.8.2 // indirect
+	github.com/fluxcd/flux2/v2 v2.8.8 // indirect
+	github.com/fluxcd/kustomize-controller/api v1.8.5 // indirect
 	github.com/fluxcd/pkg/apis/acl v0.10.0 // indirect
 	github.com/fluxcd/pkg/apis/kustomize v1.18.0 // indirect
-	github.com/fluxcd/pkg/kustomize v1.27.1 // indirect
+	github.com/fluxcd/pkg/kustomize v1.27.2 // indirect
 	github.com/fluxcd/pkg/tar v0.17.0 // indirect
 	github.com/go-errors/errors v1.5.1 // indirect
 	github.com/go-logr/stdr v1.2.2 // indirect
@@ -72,7 +72,7 @@ require (
 	k8s.io/apiserver v0.36.1 // indirect
 	k8s.io/streaming v0.36.1 // indirect
 	sigs.k8s.io/apiserver-network-proxy/konnectivity-client v0.34.0 // indirect
-	sigs.k8s.io/kind v0.31.0 // indirect
+	sigs.k8s.io/kind v0.32.0 // indirect
 	sigs.k8s.io/kustomize/api v0.21.1 // indirect
 	sigs.k8s.io/kustomize/kyaml v0.21.1 // indirect
 )
@@ -99,7 +99,7 @@ require (
 	github.com/modern-go/concurrent v0.0.0-20180306012644-bacd9c7ef1dd // indirect
 	github.com/modern-go/reflect2 v1.0.3-0.20250322232337-35a7c28c31ee // indirect
 	github.com/munnerz/goautoneg v0.0.0-20191010083416-a7dc8b61c822 // indirect
-	github.com/openmcp-project/openmcp-testing v0.3.2
+	github.com/openmcp-project/openmcp-testing v1.0.1
 	github.com/pmezard/go-difflib v1.0.1-0.20181226105442-5d4384ee4fb2 // indirect
 	github.com/prometheus/client_golang v1.23.2 // indirect
 	github.com/prometheus/client_model v0.6.2 // indirect
