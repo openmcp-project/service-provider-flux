@@ -39,6 +39,7 @@ import (
 	openmcpconst "github.com/openmcp-project/openmcp-operator/api/constants"
 	providerv1alpha1 "github.com/openmcp-project/openmcp-operator/api/provider/v1alpha1"
 	"github.com/openmcp-project/openmcp-operator/lib/clusteraccess"
+	"github.com/openmcp-project/openmcp-operator/lib/clusteraccess/advanced"
 	"github.com/openmcp-project/openmcp-operator/lib/utils"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 
@@ -54,6 +55,7 @@ import (
 	"sigs.k8s.io/controller-runtime/pkg/healthz"
 	"sigs.k8s.io/controller-runtime/pkg/metrics/filters"
 	metricsserver "sigs.k8s.io/controller-runtime/pkg/metrics/server"
+	"sigs.k8s.io/controller-runtime/pkg/reconcile"
 	"sigs.k8s.io/controller-runtime/pkg/webhook"
 
 	"github.com/openmcp-project/service-provider-flux/api/crds"
@@ -232,19 +234,6 @@ func main() {
 		setupLog.Error(fmt.Errorf("environment variable %s not set - cannot determine source namespace for secrets", openmcpconst.EnvVariablePodNamespace), "pod namespace missing")
 		os.Exit(1)
 	}
-	// TODO: define minimum set of permission required to run the init and run part of your service provider
-	adminPermissions := []clustersv1alpha1.PermissionsRequest{
-		{
-
-			Rules: []rbacv1.PolicyRule{
-				{
-					APIGroups: []string{"*"},
-					Resources: []string{"*"},
-					Verbs:     []string{"*"},
-				},
-			},
-		},
-	}
 	clusterAccessManager := clusteraccess.NewClusterAccessManager(platformCluster.Client(),
 		"flux.flux.services.openmcp.cloud", os.Getenv("POD_NAMESPACE"))
 	clusterAccessManager.WithLogger(&log).
@@ -253,7 +242,19 @@ func main() {
 	ctx := context.Background()
 	// init (job that installs CRDs)
 	if command == "init" {
-		onboardingCluster, err := requestOnboardingClusterAccess(ctx, clusterAccessManager, platformCluster, adminPermissions, "init")
+		initPermissions := []clustersv1alpha1.PermissionsRequest{
+			{
+
+				Rules: []rbacv1.PolicyRule{
+					{
+						APIGroups: []string{"apiextensions.k8s.io"},
+						Resources: []string{"customresourcedefinitions"},
+						Verbs:     []string{"*"},
+					},
+				},
+			},
+		}
+		onboardingCluster, err := requestOnboardingClusterAccess(ctx, clusterAccessManager, platformCluster, initPermissions, "init")
 		if err != nil {
 			setupLog.Error(err, "Failed to create and wait for onboarding cluster access")
 		}
@@ -280,7 +281,19 @@ func main() {
 		return
 	}
 	// run (sp controller deployment)
-	onboardingCluster, err := requestOnboardingClusterAccess(ctx, clusterAccessManager, platformCluster, adminPermissions, "run")
+	runPermissions := []clustersv1alpha1.PermissionsRequest{
+		{
+
+			Rules: []rbacv1.PolicyRule{
+				{
+					APIGroups: []string{fluxsv1alpha1.GroupVersion.Group},
+					Resources: []string{"*"},
+					Verbs:     []string{"*"},
+				},
+			},
+		},
+	}
+	onboardingCluster, err := requestOnboardingClusterAccess(ctx, clusterAccessManager, platformCluster, runPermissions, "run")
 	if err != nil {
 		setupLog.Error(err, "Failed to create and wait for onboarding cluster access")
 	}
@@ -314,6 +327,53 @@ func main() {
 		os.Exit(1)
 	}
 	providerConfigUpdates := make(chan event.GenericEvent)
+
+	tokenAccessConfig := &clustersv1alpha1.TokenConfig{
+		Permissions: []clustersv1alpha1.PermissionsRequest{
+			{
+				Rules: []rbacv1.PolicyRule{
+					{
+						APIGroups: []string{"*"},
+						Resources: []string{"*"},
+						Verbs:     []string{"*"},
+					},
+				},
+			},
+		},
+		RoleRefs: []common.RoleRef{
+			{
+				Name: "cluster-admin",
+				Kind: "ClusterRole",
+			},
+		},
+	}
+
+	mcpClusterRequest := advanced.ExistingClusterRequest("mcp", "mcp", func(req reconcile.Request, _ ...any) (*common.ObjectReference, error) {
+		namespace, err := utils.StableMCPNamespace(req.Name, req.Namespace)
+		if err != nil {
+			return nil, err
+		}
+		return &common.ObjectReference{
+			Name:      req.Name,
+			Namespace: namespace,
+		}, nil
+	}).
+		WithNamespaceGenerator(advanced.DefaultNamespaceGeneratorForMCP).
+		WithTokenAccess(tokenAccessConfig).
+		WithScheme(mcpScheme).
+		Build()
+
+	car := advanced.NewClusterAccessReconciler(platformCluster.Client(), "Flux").
+		WithManagedLabels(func(controllerName string, req reconcile.Request, reg advanced.ClusterRegistration) (string, string, map[string]string) {
+			_, managedPurpose, _ := advanced.DefaultManagedLabelGenerator(controllerName, req, reg)
+			return controllerName, managedPurpose, map[string]string{
+				openmcpconst.OnboardingNameLabel:      req.Name,
+				openmcpconst.OnboardingNamespaceLabel: req.Namespace,
+			}
+		}).
+		WithRetryInterval(10 * time.Second).
+		Register(mcpClusterRequest)
+
 	spr := serviceprovider.NewAPIReconcilerBuilder[*fluxsv1alpha1.Flux, *fluxsv1alpha1.ProviderConfig]().
 		EmptyObjectProvider(func() *fluxsv1alpha1.Flux { return &fluxsv1alpha1.Flux{} }).
 		PlatformCluster(platformCluster).
@@ -323,16 +383,9 @@ func main() {
 			PlatformCluster:   platformCluster,
 			PodNamespace:      podNamespace,
 		}).
-		ClusterAccessReconciler(clusteraccess.NewClusterAccessReconciler(platformCluster.Client(), "Flux").
-			WithMCPScheme(mcpScheme).
-			WithRetryInterval(10 * time.Second).
-			WithMCPPermissions(adminPermissions).WithMCPRoleRefs([]common.RoleRef{
-			{
-				Name: "cluster-admin",
-				Kind: "ClusterRole",
-			}}).
-			SkipWorkloadCluster(),
-		).MustBuild()
+		AdvancedClusterAccessReconciler(car).
+		MustBuild()
+
 	if err := spr.SetupWithManager(mgr, "flux", providerConfigUpdates); err != nil {
 		setupLog.Error(err, "unable to create controller", "controller", "Flux")
 		os.Exit(1)
