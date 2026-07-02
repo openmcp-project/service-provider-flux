@@ -4,8 +4,8 @@ go 1.26.4
 
 require (
 	github.com/fluxcd/helm-controller/api v1.5.5
-	github.com/fluxcd/pkg/apis/meta v1.30.0
-	github.com/fluxcd/pkg/runtime v0.107.0
+	github.com/fluxcd/pkg/apis/meta v1.31.0
+	github.com/fluxcd/pkg/runtime v0.111.0
 	github.com/fluxcd/source-controller/api v1.9.0
 	github.com/openmcp-project/controller-utils v0.30.0
 	github.com/openmcp-project/opencontrolplane-runtime v0.4.0
@@ -29,7 +29,7 @@ require (
 	github.com/fluxcd/flux2/v2 v2.8.3 // indirect
 	github.com/fluxcd/kustomize-controller/api v1.8.2 // indirect
 	github.com/fluxcd/pkg/apis/acl v0.10.0 // indirect
-	github.com/fluxcd/pkg/apis/kustomize v1.19.0 // indirect
+	github.com/fluxcd/pkg/apis/kustomize v1.20.0 // indirect
 	github.com/fluxcd/pkg/kustomize v1.27.1 // indirect
 	github.com/fluxcd/pkg/tar v0.17.0 // indirect
 	github.com/go-errors/errors v1.5.1 // indirect
@@ -52,7 +52,7 @@ require (
 	github.com/mattn/go-isatty v0.0.20 // indirect
 	github.com/moby/spdystream v0.5.1 // indirect
 	github.com/monochromegane/go-gitignore v0.0.0-20200626010858-205db1a8cc00 // indirect
-	github.com/onsi/gomega v1.42.0 // indirect
+	github.com/onsi/gomega v1.42.1 // indirect
 	github.com/pelletier/go-toml v1.9.5 // indirect
 	github.com/pkg/errors v0.9.1 // indirect
 	github.com/stoewer/go-strcase v1.3.0 // indirect
