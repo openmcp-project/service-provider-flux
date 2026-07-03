@@ -14,6 +14,20 @@
   "postUpdateOptions": [
     "gomodTidy"
   ],
+  "ignorePresets": [
+    ":ignoreModulesAndTests"
+  ],
+  "customManagers": [
+    {
+      "customType": "regex",
+      "managerFilePatterns": [
+        "/test/e2e/.*\\.go$/"
+      ],
+      "matchStrings": [
+        "// renovate: datasource=(?<datasource>[^\\s]+) depName=(?<depName>[^\\s]+)\\s+[^\"]*\"[^:]+:(?<currentValue>[^\"]+)\""
+      ]
+    }
+  ],
   "packageRules": [
     {
       "description": "Group openmcp-project/build submodule and workflow updates",
