@@ -374,6 +374,10 @@ func main() {
 		WithRetryInterval(10 * time.Second).
 		Register(mcpClusterRequest)
 
+	if debugEnabled() {
+		car = localaccess.NewLocalAdvancedClusterAccessReconciler(car)
+	}
+
 	spr := serviceprovider.NewAPIReconcilerBuilder[*fluxsv1alpha1.Flux, *fluxsv1alpha1.ProviderConfig]().
 		EmptyObjectProvider(func() *fluxsv1alpha1.Flux { return &fluxsv1alpha1.Flux{} }).
 		PlatformCluster(platformCluster).
