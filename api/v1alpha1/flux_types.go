@@ -20,6 +20,8 @@ import (
 	corev1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/runtime"
+
+	commonapi "github.com/openmcp-project/openmcp-operator/api/common"
 )
 
 // InstancePhase is a custom type representing the phase of a service instance.
@@ -50,29 +52,8 @@ type FluxSpec struct {
 
 // FluxStatus defines the observed state of Flux.
 type FluxStatus struct {
-	// INSERT ADDITIONAL STATUS FIELD - define observed state of cluster
-	// Important: Run "make" to regenerate code after modifying this file
+	commonapi.Status `json:",inline"`
 
-	// For Kubernetes API conventions, see:
-	// https://github.com/kubernetes/community/blob/master/contributors/devel/sig-architecture/api-conventions.md#typical-status-properties
-
-	// conditions represent the current state of the Flux resource.
-	// Each condition has a unique type and reflects the status of a specific aspect of the resource.
-	//
-	// Standard condition types include:
-	// - "Available": the resource is fully functional
-	// - "Progressing": the resource is being created or updated
-	// - "Degraded": the resource failed to reach or maintain its desired state
-	//
-	// The status of each condition is one of True, False, or Unknown.
-	// +listType=map
-	// +listMapKey=type
-	// +optional
-	Conditions []metav1.Condition `json:"conditions,omitempty"`
-	// ObservedGeneration is the generation of this resource that was last reconciled by the controller.
-	ObservedGeneration int64 `json:"observedGeneration"`
-	// Phase is the current phase of the resource.
-	Phase string `json:"phase"`
 	// Resources managed by this Flux instance
 	// +optional
 	Resources []ManagedResource `json:"resources,omitempty"`
