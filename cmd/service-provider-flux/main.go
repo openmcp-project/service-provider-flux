@@ -388,7 +388,7 @@ func main() {
 		AdvancedClusterAccessReconciler(car).
 		MustBuild()
 
-	if err := spr.SetupWithManager(mgr, "flux"); err != nil {
+	if err := spr.SetupWithManager(mgr, providerName); err != nil {
 		setupLog.Error(err, "unable to create controller", "controller", "Flux")
 		os.Exit(1)
 	}
