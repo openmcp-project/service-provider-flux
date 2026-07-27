@@ -41,6 +41,7 @@ var certDirectories = []string{
 	"/etc/pki/tls/certs",
 }
 
+// nolint:goconst
 var fluxControllers = []string{
 	"helmController",
 	"imageAutomationController",
