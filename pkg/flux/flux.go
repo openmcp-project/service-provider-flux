@@ -76,7 +76,7 @@ func ManageFluxResources(p ManageFluxResourcesParams) {
 				return fmt.Errorf("missing ChartURL definition for Flux version %s", p.RequestedVersion.Version)
 			}
 			ociRepo.Spec = sourcev1.OCIRepositorySpec{
-				Interval: metav1.Duration{Duration: p.ProviderConfig.PollInterval()},
+				Interval: &metav1.Duration{Duration: p.ProviderConfig.PollInterval()},
 				URL:      *p.RequestedVersion.ChartURL,
 				Reference: &sourcev1.OCIRepositoryRef{
 					Tag: p.RequestedVersion.ChartVersion,
