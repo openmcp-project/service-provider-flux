@@ -386,6 +386,81 @@ func TestAddCaToHelmValues(t *testing.T) {
 	}
 }
 
+func TestAddTUFRootToHelmValues(t *testing.T) {
+	tufEnvVar := corev1.EnvVar{Name: tufRootEnvName, Value: tufRootPath}
+
+	tests := []struct {
+		name       string
+		values     *apiextensionsv1.JSON
+		checkValue func(t *testing.T, out *apiextensionsv1.JSON)
+	}{
+		{
+			name:   "adds TUF_ROOT to sourceController when no values are set",
+			values: nil,
+			checkValue: func(t *testing.T, out *apiextensionsv1.JSON) {
+				expected := buildHelmValues(t,
+					withControllerField(sourceControllerKey, "extraEnv", []corev1.EnvVar{tufEnvVar}),
+				)
+				assert.JSONEq(t, string(expected.Raw), string(out.Raw))
+			},
+		},
+		{
+			name: "appends TUF_ROOT and preserves existing sourceController extraEnv",
+			values: buildHelmValues(t,
+				withRootField("namespaceOverride", "custom"),
+				withControllerField(sourceControllerKey, "extraEnv", []corev1.EnvVar{
+					{Name: "FOO", Value: "bar"},
+				}),
+			),
+			checkValue: func(t *testing.T, out *apiextensionsv1.JSON) {
+				expected := buildHelmValues(t,
+					withRootField("namespaceOverride", "custom"),
+					withControllerField(sourceControllerKey, "extraEnv", []corev1.EnvVar{
+						{Name: "FOO", Value: "bar"},
+						tufEnvVar,
+					}),
+				)
+				assert.JSONEq(t, string(expected.Raw), string(out.Raw))
+			},
+		},
+		{
+			name: "keeps a user-provided TUF_ROOT value",
+			values: buildHelmValues(t,
+				withControllerField(sourceControllerKey, "extraEnv", []corev1.EnvVar{
+					{Name: tufRootEnvName, Value: "/custom/tuf"},
+				}),
+			),
+			checkValue: func(t *testing.T, out *apiextensionsv1.JSON) {
+				expected := buildHelmValues(t,
+					withControllerField(sourceControllerKey, "extraEnv", []corev1.EnvVar{
+						{Name: tufRootEnvName, Value: "/custom/tuf"},
+					}),
+				)
+				assert.JSONEq(t, string(expected.Raw), string(out.Raw))
+			},
+		},
+		{
+			name: "does not touch other controllers",
+			values: nil,
+			checkValue: func(t *testing.T, out *apiextensionsv1.JSON) {
+				var root map[string]json.RawMessage
+				require.NoError(t, json.Unmarshal(out.Raw, &root))
+				_, hasHelm := root["helmController"]
+				assert.False(t, hasHelm, "helmController must not be added")
+			},
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			out, err := AddTUFRootToHelmValues(tt.values)
+			require.NoError(t, err)
+			require.NotNil(t, out)
+			tt.checkValue(t, out)
+		})
+	}
+}
+
 type helmValues struct {
 	root        map[string]any
 	controllers map[string]map[string]any

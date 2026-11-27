@@ -192,6 +192,13 @@ func (r *FluxReconciler) createObjectManager(obj *apiv1alpha1.Flux, pc *apiv1alp
 
 	}
 
+	// Ensure source-controller can write the sigstore TUF cache under its read-only rootfs,
+	// so keyless cosign verification of OCIRepositories works out of the box.
+	fluxVersion.Values, err = flux.AddTUFRootToHelmValues(fluxVersion.Values)
+	if err != nil {
+		return nil, fmt.Errorf("failed to add TUF_ROOT to helm values: %w", err)
+	}
+
 	// Configure Flux resources (OCIRepository and HelmRelease)
 	flux.ManageFluxResources(flux.ManageFluxResourcesParams{
 		Cluster:             platformCluster,

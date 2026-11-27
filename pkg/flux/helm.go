@@ -32,6 +32,18 @@ const (
 
 	// CustomCABundleConfigMapName is the fixed name for the copied CA bundle ConfigMap on the MCP cluster.
 	CustomCABundleConfigMapName = "custom-ca-bundle"
+
+	// tufRootEnvName is the env var cosign/sigstore reads to locate the TUF metadata cache
+	// (see sigstore/sigstore pkg/tuf/client.go, TufRootEnv). When unset it falls back to
+	// $HOME/.sigstore/root, which is unwritable under the source-controller read-only rootfs.
+	tufRootEnvName = "TUF_ROOT"
+
+	// tufRootPath points the TUF cache at the writable /tmp emptyDir the chart already mounts,
+	// matching upstream fluxcd/source-controller (config/manager/deployment.yaml).
+	tufRootPath = "/tmp/.sigstore"
+
+	// sourceControllerKey is the Helm values key for the Flux source-controller.
+	sourceControllerKey = "sourceController"
 )
 
 // certDirectories contains a list of places where the default system certs are stored in addition to caBundleMountDir
@@ -48,7 +60,7 @@ var fluxControllers = []string{
 	"imageReflectionController",
 	"kustomizeController",
 	"notificationController",
-	"sourceController",
+	sourceControllerKey,
 	"sourceWatcher",
 }
 
@@ -144,6 +156,73 @@ func AddCAToHelmValues(values *apiextensionsv1.JSON, configMap *corev1.ConfigMap
 	}
 
 	return &apiextensionsv1.JSON{Raw: out}, nil
+}
+
+// AddTUFRootToHelmValues ensures the source-controller carries a TUF_ROOT env var pointing at the
+// writable /tmp emptyDir, so keyless cosign verification works under the controller's read-only
+// rootfs. Without it, sigstore falls back to $HOME/.sigstore/root (/.sigstore in the pod) and fails
+// to write the TUF metadata cache. A user-supplied TUF_ROOT in the ProviderConfig values is kept.
+func AddTUFRootToHelmValues(values *apiextensionsv1.JSON) (*apiextensionsv1.JSON, error) {
+	var root = map[string]json.RawMessage{}
+	if values != nil && len(values.Raw) > 0 {
+		if err := json.Unmarshal(values.Raw, &root); err != nil {
+			return nil, fmt.Errorf("failed to unmarshal helm values: %w", err)
+		}
+		if root == nil {
+			root = make(map[string]json.RawMessage)
+		}
+	}
+
+	tufEnvVar := corev1.EnvVar{Name: tufRootEnvName, Value: tufRootPath}
+	if err := addEnvVarToController(root, sourceControllerKey, tufEnvVar); err != nil {
+		return nil, err
+	}
+
+	out, err := json.Marshal(root)
+	if err != nil {
+		return nil, fmt.Errorf("failed to marshal helm values: %w", err)
+	}
+
+	return &apiextensionsv1.JSON{Raw: out}, nil
+}
+
+// addEnvVarToController appends envVar to the given controller's extraEnv in root, replacing any
+// existing entry of the same name. A caller-supplied value therefore wins over the default.
+func addEnvVarToController(root map[string]json.RawMessage, controller string, envVar corev1.EnvVar) error {
+	var controllerValues map[string]json.RawMessage
+	var envVars []corev1.EnvVar
+
+	if err := unmarshalIfPresent(root, controller, &controllerValues); err != nil {
+		return fmt.Errorf("failed to unmarshal %s: %w", controller, err)
+	}
+	if controllerValues == nil {
+		controllerValues = map[string]json.RawMessage{}
+	}
+
+	if err := unmarshalIfPresent(controllerValues, "extraEnv", &envVars); err != nil {
+		return fmt.Errorf("failed to unmarshal %s.extraEnv: %w", controller, err)
+	}
+
+	// Keep a user-provided value for this env var: only append when absent.
+	for _, existing := range envVars {
+		if existing.Name == envVar.Name {
+			return nil
+		}
+	}
+	envVars = append(envVars, envVar)
+
+	envVarsRaw, err := json.Marshal(envVars)
+	if err != nil {
+		return fmt.Errorf("failed to marshal %s.extraEnv: %w", controller, err)
+	}
+	controllerValues["extraEnv"] = envVarsRaw
+
+	controllerRaw, err := json.Marshal(controllerValues)
+	if err != nil {
+		return fmt.Errorf("failed to marshal %s: %w", controller, err)
+	}
+	root[controller] = controllerRaw
+	return nil
 }
 
 func addCAToController(
