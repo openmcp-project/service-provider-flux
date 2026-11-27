@@ -175,28 +175,8 @@ func (r *FluxReconciler) createObjectManager(obj *apiv1alpha1.Flux, pc *apiv1alp
 		})
 	}
 
-	if pc.Spec.CABundleRef != nil {
-		// add custom ca volume, volumeMount and envVar to helm values
-		fluxVersion.Values, err = flux.AddCAToHelmValues(fluxVersion.Values, pc.Spec.CABundleRef)
-		if err != nil {
-			return nil, fmt.Errorf("failed to add ca volume to helm values: %w", err)
-		}
-
-		// Sync ca configmap from platform cluster to MCP
-		flux.ManageCaConfigMap(mcpCluster, pc.Spec.CABundleRef.LocalObjectReference, flux.ConfigMapCopyConfig{
-			SourceClient:    r.PlatformCluster.Client(),
-			SourceNamespace: r.PodNamespace,
-			TargetNamespace: fluxNamespace,
-			TargetName:      flux.CustomCABundleConfigMapName,
-		})
-
-	}
-
-	// Ensure source-controller can write the sigstore TUF cache under its read-only rootfs,
-	// so keyless cosign verification of OCIRepositories works out of the box.
-	fluxVersion.Values, err = flux.AddTUFRootToHelmValues(fluxVersion.Values)
-	if err != nil {
-		return nil, fmt.Errorf("failed to add TUF_ROOT to helm values: %w", err)
+	if err = r.addProviderValues(&fluxVersion, pc, mcpCluster, fluxNamespace); err != nil {
+		return nil, err
 	}
 
 	// Configure Flux resources (OCIRepository and HelmRelease)
@@ -235,6 +215,37 @@ func (r *FluxReconciler) createObjectManager(obj *apiv1alpha1.Flux, pc *apiv1alp
 	mgr.AddCleaner(controlPlaneConfigMapCleaner)
 
 	return mgr, nil
+}
+
+// addProviderValues injects provider-managed additions into the Flux Helm values: an optional
+// custom CA bundle (syncing the CA ConfigMap to the MCP) and the TUF_ROOT env default that lets
+// source-controller run keyless cosign verification on its read-only root filesystem.
+func (r *FluxReconciler) addProviderValues(fluxVersion *apiv1alpha1.FluxVersion, pc *apiv1alpha1.ProviderConfig, mcpCluster flux.ManagedCluster, fluxNamespace string) error {
+	var err error
+	if pc.Spec.CABundleRef != nil {
+		// add custom ca volume, volumeMount and envVar to helm values
+		fluxVersion.Values, err = flux.AddCAToHelmValues(fluxVersion.Values, pc.Spec.CABundleRef)
+		if err != nil {
+			return fmt.Errorf("failed to add ca volume to helm values: %w", err)
+		}
+
+		// Sync ca configmap from platform cluster to MCP
+		flux.ManageCaConfigMap(mcpCluster, pc.Spec.CABundleRef.LocalObjectReference, flux.ConfigMapCopyConfig{
+			SourceClient:    r.PlatformCluster.Client(),
+			SourceNamespace: r.PodNamespace,
+			TargetNamespace: fluxNamespace,
+			TargetName:      flux.CustomCABundleConfigMapName,
+		})
+	}
+
+	// Ensure source-controller can write the sigstore TUF cache under its read-only rootfs,
+	// so keyless cosign verification of OCIRepositories works out of the box.
+	fluxVersion.Values, err = flux.AddTUFRootToHelmValues(fluxVersion.Values)
+	if err != nil {
+		return fmt.Errorf("failed to add TUF_ROOT to helm values: %w", err)
+	}
+
+	return nil
 }
 
 func selectFluxVersion(requestedVersion string, pc *apiv1alpha1.ProviderConfig) (apiv1alpha1.FluxVersion, error) {

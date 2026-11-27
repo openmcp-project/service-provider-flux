@@ -440,7 +440,7 @@ func TestAddTUFRootToHelmValues(t *testing.T) {
 			},
 		},
 		{
-			name: "does not touch other controllers",
+			name:   "does not touch other controllers",
 			values: nil,
 			checkValue: func(t *testing.T, out *apiextensionsv1.JSON) {
 				var root map[string]json.RawMessage

@@ -190,7 +190,7 @@ func AddTUFRootToHelmValues(values *apiextensionsv1.JSON) (*apiextensionsv1.JSON
 // existing entry of the same name. A caller-supplied value therefore wins over the default.
 func addEnvVarToController(root map[string]json.RawMessage, controller string, envVar corev1.EnvVar) error {
 	var controllerValues map[string]json.RawMessage
-	var envVars []corev1.EnvVar
+	envVars := make([]corev1.EnvVar, 0, 1)
 
 	if err := unmarshalIfPresent(root, controller, &controllerValues); err != nil {
 		return fmt.Errorf("failed to unmarshal %s: %w", controller, err)
